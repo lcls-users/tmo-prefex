@@ -30,7 +30,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     #### CONFIGURATION ####
     #######################
     cfgname = '%s/%s.%s.configs.h5'%(scratchdir,expname,os.environ.get('USER'))
-    configs = Config(is_fex=False)
+    configs = Config(is_fex=True)
     params = configs.writeconfigs(cfgname).getparams()
     is_fex = params['is_fex']
     t0s = params['t0s']
@@ -79,7 +79,6 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     ds = psana.DataSource(exp=expname,run=runnums)
     detslist = {}
     hsdnames = {}
-    print(runnums)
     for r in runnums:
         run = next(ds.runs())
         rkey = run.runnum
@@ -107,6 +106,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                     #port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],t0=t0s[i],logicthresh=logicthresh[i],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_hsdname(hsdname)
+                    port[rkey][hsdname][k].set_logicthresh(1<<12)
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)
@@ -141,7 +141,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
             completeEvent:List[bool] = [True]
             if eventnum > nshots:
                 break
-            if eventnum%10==0: print(eventnum)
+            #if eventnum%50==0: print('running event %i'%eventnum)
             ## test hsds
             if runhsd and bool(np.prod(completeEvent)):
                 for i,hsdname in enumerate(hsds[rkey].keys()):
@@ -176,17 +176,19 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                         nwins:int = 1
                         xlist:List[int] = []
                         slist:List[ List[int] ] = []
+                        baseline = np.uint32(0)
                         if is_fex:
                             nwins = len(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0])
                             if nwins >2 : # always reports the start of and the end of the fex active window.
-                                baseline = np.mean(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][0].astype(np.float16))
+                                baseline = np.sum(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][0].astype(np.uint32))
+                                baseline //= len(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][0])
                                 for i in range(1,nwins-2):
                                     xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
                                     slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
                         else:
                             slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
                             xlist += [0]
-                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
+                        port[rkey][hsdname][key].set_baseline(baseline).process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
 
             ## redundant events vec
             if bool(np.prod(completeEvent)):
@@ -209,11 +211,11 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                 if eventnum<100 and eventnum%10==0: 
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
-                elif eventnum<1000 and eventnum%100==0: 
+                elif eventnum<1000 and eventnum%25==0: 
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
                 else:
-                    if eventnum%1000==0: 
+                    if eventnum%500==0: 
                         for hsdname in hsds[rkey].keys():
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
@@ -245,7 +247,7 @@ if __name__ == '__main__':
         nshots = int(sys.argv[1])
         expname = sys.argv[2]
         runnums = [int(r) for r in list(sys.argv[3:])]
-        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files/%s/'%(expname,os.environ.get('USER'),socket.gethostname())
+        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files/%s'%(expname,os.environ.get('USER'),socket.gethostname())
         if not os.path.exists(scratchdir):
             os.makedirs(scratchdir)
         main(nshots,expname,runnums,scratchdir)

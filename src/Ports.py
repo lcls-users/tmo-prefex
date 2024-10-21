@@ -39,26 +39,32 @@ def fftLogic_f16(s,inflate=1,nrolloff=128):
     return -((y>>4)*(dy>>4)).astype(np.int16)
 
 
-def fftLogic_fex(s,inflate=1,nrollon=8,nrolloff=32):
+def fftLogic_fex(s,baseline,inflate=1,nrollon=8,nrolloff=32):
     sz = s.shape[0]
+    if (sz)<nrolloff:
+        print('sz is wrong %i'%(len(s)))
+        print('nrolloff = %i'%(nrolloff))
     result = np.zeros(sz*inflate,dtype=np.int32)
     rollon_vec = 0.5*(1.-np.cos(np.arange(nrollon,dtype=float)*np.pi/float(nrollon))) 
     rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
-    smirror = np.append(s,np.flip(s,axis=0)).astype(float)
+    #print('rolloff sz = %i'%(len(rolloff_vec)))
+    smirror = np.append(s-baseline,np.flip(s-baseline,axis=0)).astype(float)
     smirror[:nrollon] *= rollon_vec
-    smirror[-nrollon-1:] *= np.flip(rollon_vec,axis=0)
-    smirror[(sz>>1)-nrolloff:(sz>>1)+nrolloff] *= rolloff_vec
+    smirror[-nrollon:] *= np.flip(rollon_vec,axis=0)
+    smirror[sz-nrolloff:sz+nrolloff] *= rolloff_vec
     
     S = fft(smirror,axis=0)
-    #S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
+    S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
     if inflate>1:
         S = np.concatenate((S[:sz],np.zeros(2*sz*(inflate-1),dtype=complex),S[sz:]))
-    Sy = np.copy(S)*sz
+    Sy = np.copy(S)
     S[:sz] *= 1j*np.arange(sz,dtype=float)/(sz)
     S[-sz:] *= np.flip(-1j*np.arange(sz,dtype=float)/(sz),axis=0)
     y = ifft(Sy,axis=0).real[:(inflate*sz)]
     dy = ifft(S,axis=0).real[:(inflate*sz)]
-    return -y*dy
+    result = y
+    #print(np.min(res),np.max(res))
+    return result
 
 def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
     sz = s.shape[0]
@@ -98,13 +104,13 @@ class Port:
         self.t0 = t0
         self.nadcs = nadcs
         self.baselim = baselim
+        self.baseline = np.uint32(1<<14)
         self.logicthresh = logicthresh
         self.initState = True
         self.inflate = inflate
         self.expand = expand
         self.nrollon = nrollon
         self.nrolloff = nrolloff
-        self.sz = 0
         self.tofs = []
         self.slopes = []
         self.addresses = []
@@ -133,10 +139,10 @@ class Port:
     def update_h5(cls,f,port,hsdEvents):
         rkeys = port.keys()
         for rkey in rkeys:
-            print(rkey)
+            #print(rkey)
             hsdnames = port[rkey].keys()
             for hsdname in hsdnames:
-                print(hsdname)
+                #print(hsdname)
                 rkeystr = 'run_%i'%(rkey)
                 rgrp = None
                 nmgrp = None
@@ -151,7 +157,7 @@ class Port:
         
                 p = port[rkey][hsdname]
                 for key in p.keys(): # remember key == port number
-                    print(key)
+                    #print(key)
                     g = None
                     if 'port_%i'%(key) in nmgrp.keys():
                         g = nmgrp['port_%i'%(key)]
@@ -176,11 +182,18 @@ class Port:
                     g.attrs.create('t0',data=p[key].t0,dtype=float)
                     g.attrs.create('logicthresh',data=p[key].logicthresh,dtype=np.int32)
                     g.attrs.create('hsd',data=p[key].hsd,dtype=np.uint8)
-                    g.attrs.create('size',data=p[key].sz*p[key].inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
+                    #g.attrs.create('size',data=p[key].sz*p[key].inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
                     g.create_dataset('events',data=hsdEvents)
         print('leaving Port.update_h5()')
         return 
         
+    def set_logicthresh(self,v:np.uint32):
+        self.logicthresh = v
+        return self
+
+    def get_logicthresh(self):
+        return self.logicthresh
+
     def get_runkey(self):
         return self.runkey
 
@@ -290,7 +303,7 @@ class Port:
 
     def process(self,s,x=0):
         if self.processAlgo =='fex2coeffs':
-            return process_vfex2coeffs(s,x)
+            return process_fex2coeffs(s,x)
         elif self.processAlgo == 'fex2hits':
             return self.process_fex2hits(s,x)
         return process_wave(s,x=0)
@@ -299,11 +312,16 @@ class Port:
         print('HERE HERE HERE HERE')
         return True
 
+
     def advance_event(self):
         self.e = []
         self.de = []
         self.ne = 0
         self.r = []
+        return self
+
+    def set_baseline(self,val):
+        self.baseline = np.uint32(val)
         return self
 
     def process_fex2hits(self,slist,xlist):
@@ -312,23 +330,35 @@ class Port:
         ne = 0
         r = []
         goodlist = [type(s)!=type(None) for s in slist]
-        if np.prod(goodlist).astype(bool):
+        if not np.prod(goodlist).astype(bool):
+            print(goodlist) 
             return False
         else:
             for i,s in enumerate(slist):
                 if len(self.addresses)%100==0:
                     self.r = list(np.copy(s).astype(np.int16))
                 ## no longer needing to correct for the adc offsets. ##
-                logic = fftLogic_fex(s,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
-                e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
+                logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
+                #e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
+                if len(self.addresses)%4==0:
+                    self.addsample(r,s,logic)
 
-            self.e += e
-            self.de += de
-            self.ne += ne
+                self.e += e
+                self.de += de
+                self.ne += ne
 
-            print('NOT DONE HERE')
-            if len(self.addresses)%100==0:
-                self.addsample(r,s,logic)
+        if self.initState:
+            self.addresses = [np.uint64(0)]
+            self.nedges = [np.uint64(ne)]
+            if ne>0:
+                self.tofs += self.e
+                self.slopes += self.de
+        else:
+            self.addresses += [np.uint64(len(self.tofs))]
+            self.nedges += [np.uint64(self.ne)]
+            if ne>0:
+                self.tofs += self.e
+                self.slopes += self.de
 
         return True
 
@@ -355,20 +385,22 @@ class Port:
             #logic = fftLogic(s,inflate=self.inflate,nrolloff=self.nrolloff) #produce the "logic vector"
             logic = fftLogic_f16(s,inflate=self.inflate,nrolloff=self.nrolloff) #produce the "logic vector"
             e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
+        self.e = e
+        self.de = de
+        self.ne = ne
 
         if self.initState:
-            self.sz = s.shape[0]*self.inflate*self.expand
             self.addresses = [np.uint64(0)]
             self.nedges = [np.uint64(ne)]
             if ne>0:
-                self.tofs += e
-                self.slopes += de
+                self.tofs += self.e
+                self.slopes += self.de
         else:
             self.addresses += [np.uint64(len(self.tofs))]
             self.nedges += [np.uint64(ne)]
             if ne>0:
-                self.tofs += e
-                self.slopes += de
+                self.tofs += self.e
+                self.slopes += self.de
         if len(self.addresses)%100==0:
             self.addsample(r,s,logic)
         return True
