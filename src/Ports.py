@@ -240,6 +240,26 @@ class Port:
         return self
 
 
+    def scanedges_stupid(self,d):
+        tofs = []
+        slopes = []
+        sz = d.shape[0]
+        i:int = int(0)
+        while i < sz-1:
+            while d[i] > self.logicthresh:
+                i += 1
+                if i==sz-1: return tofs,slopes,len(tofs)
+            while i<sz-1 and d[i]<0:
+                i += 1
+            stop = i
+            ''' dx / (Dy) = dx2/dy2 ; dy2*dx/Dy - dx2 ; x2-dx2 = stop - dy2*1/Dy'''
+            if d[stop]>(-1*d[stop-1]):
+                stop -= 1
+            i += 1
+            tofs += [np.uint32(stop)] 
+            slopes += [d[stop]-d[stop-1]] 
+        return tofs,slopes,np.uint64(len(tofs))
+
     def scanedges_simple(self,d):
         tofs = []
         slopes = []
@@ -340,7 +360,7 @@ class Port:
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
                 logic = cfdLogic(s)
-                e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
+                e,de,ne = self.scanedges_stupid(logic) # scan the logic vector for hits
                 if len(self.addresses)%4==0:
                     self.addsample(r,s,logic)
 
