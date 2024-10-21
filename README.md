@@ -1,3 +1,9 @@
+# Latest update...
+
+Developed quick ./src/yield.py in order to quickly show ToF yields in 'mrco\_hsd' in order to tune the position of the chamber to beamline in x(+ toward control room) and y(+ up).  
+Hutch coordinates are +z along propagation of x-ray pulses, +x is toward the roll up door, +y is up.  
+Plan for yields.py... update to running live monitor with polar plot, and accommodate longer FEX window (xpre,xpost) than the +/-8 used for tmox1016823 (shift 2 x-y tuning).  
+
 # Plan for SUMMIT+  
 Run ```fex2h5_minimal.py``` locally in the DRP and send the resulting .h5 files to OLCF.  
 Update the quantization vector (serially).  
