@@ -8,11 +8,11 @@ from typing import Type,List
     
 #def dctLogic_windowed(s,inflate=1,nrolloff=0,winsz=256,stride=128):
 
-def cfdLogic(s,invfrac=1<<2,offset=10):
-    sz = s.shape[0]
-    result = np.zeros(sz,dtype=np.int32)
-    result[:-offset] = (1<<invfrac)*s[offset:]-s[:-offset]
-    return result
+def cfdLogic(s,invfrac=1,offset=2):
+    if len(s)<(offset<<1):
+        print('offset larger than fex window')
+        return None
+    return np.array(s[:-offset]) - np.array(s[offset:])>>invfrac
 
 def fftLogic_f16(s,inflate=1,nrolloff=128):
     sz = s.shape[0]
@@ -338,8 +338,9 @@ class Port:
                 if len(self.addresses)%100==0:
                     self.r = list(np.copy(s).astype(np.int16))
                 ## no longer needing to correct for the adc offsets. ##
-                logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
-                #e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
+                ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
+                logic = cfdLogic(s)
+                e,de,ne = self.scanedges_simple(logic) # scan the logic vector for hits
                 if len(self.addresses)%4==0:
                     self.addsample(r,s,logic)
 
