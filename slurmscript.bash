@@ -15,20 +15,22 @@
 #
 #SBATCH --gpus 0
 
+host=`hostname`
 source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
-export scratchpath=/sdf/data/lcls/ds/tmo/tmox42619/scratch/ryan_output_slurm/h5files
-if ! [ -f $scratchpath ]; then
-	mkdir -p $scratchpath
-fi
-export datapath=/sdf/data/lcls/ds/tmo/tmox42619/xtc
-export expname=tmox42619
+. /sdf/home/r/rogersdd/src/tmox1016823/venv/bin/activate
+export scratchpath=/sdf/data/lcls/ds/tmo/tmox1016823/scratch/$USER/h5files/$host
+test -d $scratchpath || mkdir -p $scratchpath
+export expname=tmox1016823
 export nshots=100000
-export configfile=${scratchpath}/${expname}.hsdconfig.h5
+export configfile=$scratchpath/$expname.hsdconfig.h5
+export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
 printf -v runstr "r%04d" $1
-if [ -f ${datapath}/${expname}-${runstr}-s000-c000.xtc2 ]; then
-	python3 ./src/set_configs.py ${configfile}
+
+# seems to include s000 .. s019
+if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
+	python3 ./src/set_configs.py $configfile
 	python3 ./src/hits2h5_minimal.py $1
 else
-	echo "XTC2 file not found for run ${expname}:${runstr}"
+	echo "XTC2 file not found for run $expname:$runstr"
 fi
 

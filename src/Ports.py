@@ -323,10 +323,10 @@ class Port:
 
     def process(self,s,x=0):
         if self.processAlgo =='fex2coeffs':
-            return process_fex2coeffs(s,x)
+            return self.process_fex2coeffs(s,x)
         elif self.processAlgo == 'fex2hits':
             return self.process_fex2hits(s,x)
-        return process_wave(s,x=0)
+        return self.process_wave(s,x=0)
 
     def process_fex2coeffs(self,s,x):
         print('HERE HERE HERE HERE')
