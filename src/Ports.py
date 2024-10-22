@@ -207,26 +207,16 @@ class Port:
 
     def addsample(self,o,w,l):
         eventnum = len(self.addresses)
-        if eventnum<100:
-            if eventnum%10<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        elif eventnum<1000:
-            if eventnum%100<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        elif eventnum<10000:
-            if eventnum%1000<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        else:
-            if eventnum%10000<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
+        cap = 100
+        while eventnum > cap:
+            cap *= 10
+            if cap == 100000:
+                break
+        z = cap//10
+        if eventnum % z < 10:
+            self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
+            self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
+            self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
         return self
 
 
@@ -338,7 +328,6 @@ class Port:
         e = []
         de = []
         ne = 0
-        r = []
         goodlist = [type(s)!=type(None) for s in slist]
         if not np.prod(goodlist).astype(bool):
             print(goodlist) 
@@ -346,17 +335,18 @@ class Port:
         else:
             for i,s in enumerate(slist):
                 if len(self.addresses)%100==0:
-                    self.r = list(np.copy(s).astype(np.int16))
+                    self.r = list(s.astype(np.int16))
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
                 logic = cfdLogic(s)
                 e,de,ne = self.scanedges_stupid(logic) # scan the logic vector for hits
-                if len(self.addresses)%4==0:
-                    self.addsample(r,s,logic)
 
                 self.e += e
                 self.de += de
                 self.ne += ne
+
+            if len(self.addresses)%4==0: # last call overwrites prev.
+                self.addsample([], s, logic)
 
         if self.initState:
             self.addresses = [np.uint64(0)]
