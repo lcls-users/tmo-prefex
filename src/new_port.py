@@ -4,10 +4,13 @@ If you have per-event information, talk to WaveData or FexData
 about it.
 """
 
+from typing import List, Any
+import time
+
 import numpy as np
 from pydantic import BaseModel
 
-from Port import cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
+from Ports import cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
 from utils import mypoly,tanhInt,tanhFloat,randomround
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
@@ -16,12 +19,12 @@ _rng = np.random.default_rng( time.time_ns()%(1<<8) )
 # Serialize: cfg.model_dump_json()
 class PortConfig(BaseModel):
     id: int
-    chan: int
+    chankey: int # was hsd # was hsd
     is_fex: bool
     hsdname: str
     inflate: int = 1
     expand: int = 1
-    logic_thresh: int = -1*(1<<20)
+    logic_thresh: int = -1*(1<<20) # was logicthresh
     roll_on: int = 256
     roll_off: int = 256
     nadcs: int = 4
@@ -34,7 +37,7 @@ class PortConfig(BaseModel):
         sz = d.shape[0]
         i:int = int(0)
         while i < sz-1:
-            while d[i] > self.logicthresh:
+            while d[i] > self.logic_thresh:
                 i += 1
                 if i==sz-1: return tofs,slopes,len(tofs)
             while i<sz-1 and d[i]<0:
@@ -54,7 +57,7 @@ class PortConfig(BaseModel):
         sz = d.shape[0]
         i:int = int(10)
         while i < sz-10:
-            while d[i] > self.logicthresh:
+            while d[i] > self.logic_thresh:
                 i += 1
                 if i==sz-10: return tofs,slopes,len(tofs)
             while i<sz-10 and d[i]<0:
@@ -76,7 +79,7 @@ class PortConfig(BaseModel):
         order = 3 # this should stay fixed, since the logic zeros crossings really are cubic polys
         i = 10
         while i < sz-10:
-            while d[i] > self.logicthresh:
+            while d[i] > self.logic_thresh:
                 i += 1
                 if i==sz-10: return tofs,slopes,len(tofs)
             while i<sz-10 and d[i]<d[i-1]:
@@ -107,13 +110,22 @@ class PortConfig(BaseModel):
 
 class PortData:
     cfg: PortConfig
+    event: int
+    ok: bool
+    raw: np.ndarray # np.uint16
+    logic: List[Any]
+    tofs: List[Any]
+    slopes: List[Any]
+    nedges: np.uint64
 
 class WaveData(PortData):
     def __init__( self
                 , cfg: PortConfig
+                , event: int
                 , wave = None
                 ) -> None:
         self.cfg = cfg
+        self.event = event
         assert not cfg.is_fex
         #self.processAlgo = 'wave'
 
@@ -122,18 +134,21 @@ class WaveData(PortData):
             self.wave = wave[self.cfg.id][0]
         self.ok = self.wave is not None
 
-    def set_baseline(self, val: np.ndarray) -> "WaveData":
-        self.baseline = np.uint32(val)
+    def setup(self) -> "WaveData": # was set_baseline
+        # FIXME: just store as self.raw???
+        self.slist = [ np.array(data.wave, dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
+        self.xlist = [0]
+        #self.baseline = np.uint32(0)
         return self
 
-    def process(self,slist,xlist=[0]) -> bool:
+    def process(self) -> bool:
         cfg = self.cfg
         e:List[np.int32] = []
         de = []
         ne = 0
         r = []
-        s = slist[0]
-        x = xlist[0]
+        s = self.slist[0] # data.wave as np.int16
+        x = self.xlist[0] # == 0
         if s is None:
             return False
         
@@ -153,9 +168,11 @@ class WaveData(PortData):
 class FexData(PortData):
     def __init__( self
                 , cfg: PortConfig
+                , event: int
                 , peak = None
                 ) -> None:
         self.cfg = cfg
+        self.event = event
         assert cfg.is_fex
         self.processAlgo = 'fex2hits'
 
@@ -164,11 +181,28 @@ class FexData(PortData):
             self.peak = peak[self.cfg.id][0]
         self.ok = self.peak is not None
 
-    def set_baseline(self, val: np.ndarray) -> "PortData":
-        self.baseline = np.uint32(val)
+    def setup(self) -> "FexData": # was set_baseline
+        xlist: List[int] = []
+        slist: List[np.ndarray] = []
+
+        nwins = len(self.peak[0])
+        baseline = 0
+        if nwins > 2: # always reports the start of and the end of the fex active window.
+            baseline = np.sum(self.peak[1][0].astype(np.uint32))
+            baseline //= len(self.peak[1][0])
+            xlist.extend(self.peak[0][1:nwins-2])
+            for i in range(1,nwins-2):
+                #xlist += [ self.peak[0][i] ]
+                slist += [np.array(self.peak[1][i], dtype=np.int32)]
+
+        self.xlist = xlist
+        self.slist = slist
+        self.baseline = np.uint32(baseline)
         return self
 
-    def process(self,s,x=0) -> bool:
+    def process(self) -> bool:
+        s = self.slist
+        x = self.xlist
         if self.processAlgo =='fex2coeffs':
             return self.process_fex2coeffs(s,x)
         elif self.processAlgo == 'fex2hits':
@@ -185,23 +219,25 @@ class FexData(PortData):
         de = []
         ne = 0
         goodlist = [s is not None for s in slist]
-        if not all(goodlist)
-            print(goodlist) 
+        if not all(goodlist):
+            print(f"process_fex2hits: some bad samples, {goodlist}")
             return False
         for i,s in enumerate(slist):
             ## no longer needing to correct for the adc offsets. ##
             ## logic = fftLogic_fex(s,self.baseline,inflate=cfg.inflate,nrollon=cfg.roll_on,nrolloff=cfg.roll_off) #produce the "logic vector"
             logic = cfdLogic(s)
             es,des,nes = cfg.scanedges_stupid(logic) # scan the logic vector for hits
-            if len(self.addresses)%4==0:
-                self.addsample(r,s,logic)
 
             e.extend( es )
             de.extend( des )
             ne += nes
 
-        self.raw = s.astype(np.uint16, copy=True)
-        self.logic = logic
+        if len(slist) > 0:
+            self.raw = s.astype(np.uint16, copy=True)
+            self.logic = logic
+        else:
+            self.raw = np.zeros(0, dtype=np.uint16)
+            self.logic = np.zeros(0, dtype=np.uint16)
         self.tofs = e
         self.slopes = de
         self.nedges = np.uint64(ne)

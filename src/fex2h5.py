@@ -16,10 +16,12 @@ import numpy as np
 # pip install -r ../requirements.txt
 from stream import (
     stream, source, sink,
-    take, Source, takei, seq
+    take, Source, takei, seq,
+    chop, map
 )
 
 from new_port import PortConfig, WaveData, FexData
+from combine_port import save_dd_batch, write_h5
 from Ebeam import *
 from Vls import *
 from Gmd import *
@@ -88,7 +90,8 @@ def setup_hsd_ports(run, params):
     return port, hsds, chankeys
 
 @source
-def run_events(run, is_fex, port, hsds, chankeys, start_event=0):
+def run_hsds(run, ports, hsds, chankeys, start_event=0):
+    # assume runhsd is True if this fn. is called
     rkey = run.runnum
     print('starting analysis exp %s for run %i'%(expname,int(rkey)))
 
@@ -115,7 +118,7 @@ def run_events(run, is_fex, port, hsds, chankeys, start_event=0):
         out = {}
         completeEvent:List[bool] = [True]
         ## test hsds
-        if runhsd and all(completeEvent):
+        if all(completeEvent):
             for hsdname, hsd in hsds.items():
                 out[hsdname] = {}
                 if hsd is None: # guard pattern
@@ -123,21 +126,25 @@ def run_events(run, is_fex, port, hsds, chankeys, start_event=0):
                     completeEvent += [False]
                     continue
                 for key in chankeys[hsdname]: # here key means 'port number'
-                    if is_fex:
+                    if ports[hsdname][key].is_fex:
                         peak = hsd.raw.peaks(evt)
                         if peak is None:
                             print('%i/%i: hsds[%s].raw.peaks(evt) is None'%(rkey,eventnum,hsdname))
                             completeEvent += [False]
                         else:
-                            out[key] = FexData(port[hsdname][key],
-                                                peak=peak)
-                            completeEvent += [out[key].ok]
+                            out[hsdname][key] = \
+                                    FexData(ports[hsdname][key],
+                                               eventnum,
+                                               peak=peak)
+                            completeEvent += [out[hsdname][key].ok]
                     else:
                         wave = hsd.raw.waveforms(evt)
                         if wave is None:
-                            out[key] = WaveData(port[hsdname][key],
+                            out[hsdname][key] = \
+                                    WaveData(ports[hsdname][key],
+                                                eventnum,
                                                 wave=wave)
-                            completeEvent += [out[key].ok]
+                            completeEvent += [out[hsdname][key].ok]
                         else:
                             print('%i/%i: hsds[%s].raw.waveforms(evt) is None'%(rkey,eventnum,hsdname))
                             completeEvent += [False]
@@ -146,71 +153,32 @@ def run_events(run, is_fex, port, hsds, chankeys, start_event=0):
         ## before processing ##
 
         ## process hsds
-        if runhsd and all(completeEvent):
+        if all(completeEvent):
             for hsdname, out_hsd in out.items():
                 ''' HSD-Abaco section '''
                 for key, data in out_hsd.items():
-                    nwins:int = 1
-                    xlist:List[int] = []
-                    slist:List[ np.ndarray ] = []
-                    baseline = np.uint32(0)
-                    if data.cfg.is_fex:
-                        nwins = len(data.peak[0])
-                        if nwins >2 : # always reports the start of and the end of the fex active window.
-                            baseline = np.sum(data.peak[1][0].astype(np.uint32))
-                            baseline //= len(data.peak[1][0])
-                            xlist.extend(data.peak[0][1:nwins-2])
-                            for i in range(1,nwins-2):
-                                #xlist += [ data.peak[0][i] ]
-                                slist += [ np.array(data.peak[1][i],dtype=np.int32) ]
-                    else:
-                        slist += [ np.array(data.wave, dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
-                        xlist += [0]
-                    data.set_baseline(baseline)
-                    #.process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
+                    if not data.setup().process():
+                        completeEvent.append(False)
         # Note: We yield once here for every event
         # and keep hsdEvents in a separate (accumulator) function
 
         ## redundant events vec
         # NOTE: eventnum only increments for complete events
         if all(completeEvent):
-            yield eventnum, out
+            yield out
             eventnum += 1
-
-@stream
-def accumEvents(inp, hsds, chankeys):
-    """ Accumulate a growing list of complete events.
-    """
-    hsdEvents = []
-    #if runhsd: # assume this is true because you called me
-
-    init = True
-
-    for eventnum, port in inp:
-        hsdEvents.append(eventnum)
-
-        if init:
-            init = False
-            for hsdname in port.keys():
-                for key in port[hsdname].keys():
-                    port[hsdname][key].set_initState(False)
-
-        if eventnum<2:
-            for hsdname in hsds.keys():
-                print('ports = %s'%([k for k in chankeys[hsdname].keys()]))
-        yield eventnum, port, hsdEvents
 
 # inp: Iterator[Tuple[ int, Dict[str,Dict[int,Port]], List[int] ]]
 @sink
-def write_out(inp, outname):
+def write_out(inp, ports, outname):
     #if runhsd: # assume this is true because you called me
-    for (eventnum, port, hsdEvents) in inp:
-        for hsdname in hsds.keys():
-            print('%s: writing event %i,\tnedges = %s'%(hsdname, eventnum,[port[hsdname][k].getnedges() for k in chankeys[hsdname]] ))
+    for batch in inp:
+        #for hsdname in hsds.keys():
+        #    print('%s: writing event %i,\tnedges = %s'%(hsdname, eventnum,[ports[hsdname][k].getnedges() for k in chankeys[hsdname]] ))
 
         print('writing to %s'%outname)
         with h5py.File(outname,'w') as f:
-            Port.update_h5(f,port,hsdEvents)
+            write_h5(f, ports, batch)
 
 def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
   
@@ -247,20 +215,24 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     ###################################
     is_fex = params['is_fex']
     
-    selected = Source(range(100, 1000, 100))
-    selected << seq(1000, 1000)
-
     ds = psana.DataSource(exp=expname,run=runnums)
     for r in runnums:
         run = next(ds.runs())
         outname = '%s/hits.%s.run_%03i.h5'%(scratchdir,expname,run.runnum)
-        port, hsds, chankeys = setup_hsd_ports(run, params)
-        s = run_events(run, is_fex, port, hsds, chankeys)
+        ports, hsds, chankeys = setup_hsd_ports(run, params)
+        for hsdname, chan in chankeys.items():
+            print('%s: ports = %s'%(hsdname, list(chan.keys())))
+
+        s = run_hsds(run, ports, hsds, chankeys)
         if nshots > 0: # truncate to nshots
             s = s >> take(nshots)
-        s >> accumEvents(hsds, chankeys) \
-          >> takei(selected) \
-          >> write_out(outname)
+        s = s >> chop(100) >> map(save_dd_batch)
+
+        # taking every tenth will drop data
+        #>> takei(seq(0, 10))
+
+        # executes when connected to sink:
+        s >> write_out(ports, outname)
 
     print("Hello, I'm done now.  Have a most excellent day!")
 

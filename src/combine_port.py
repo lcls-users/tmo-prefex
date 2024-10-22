@@ -5,7 +5,7 @@ from new_port import WaveData, FexData
 import numpy as np
 from stream import filter
 
-def write_h5(f, ports, port_data, hsdEvents):
+def write_h5(f, ports, port_data):
     for hsdname, p in ports.items():
         if hsdname in f.keys():
             nmgrp = f[hsdname]
@@ -34,14 +34,14 @@ def write_h5(f, ports, port_data, hsdEvents):
                         ('logics',np.int32),
                     ]:
                 g.create_dataset(name,
-                                 data=data[name].astype(dtype),
+                                 data=np.array(data[name], dtype=dtype),
                                  dtype=dtype)
 
             g.attrs.create('inflate',data=port.inflate,dtype=np.uint8)
             g.attrs.create('expand',data=port.expand,dtype=np.uint8)
             g.attrs.create('t0',data=port.t0,dtype=float)
-            g.attrs.create('logicthresh',data=port.logicthresh,dtype=np.int32)
-            g.attrs.create('hsd',data=port.hsd,dtype=np.uint8)
+            g.attrs.create('logic_thresh',data=port.logic_thresh,dtype=np.int32) # was logicthresh
+            g.attrs.create('chankey',data=port.chankey,dtype=np.uint8) # was hsd
             #g.attrs.create('size',data=port.sz*port.inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
 
 def should_save_raw(eventnum):
@@ -52,6 +52,29 @@ def should_save_raw(eventnum):
             break
     z = cap//10
     return eventnum % z < 10
+
+def map_dd(u: List[Dict[str,Dict[int,Any]]],
+           fn
+          ) -> Dict[str,Dict[int,Any]]:
+    if len(u) == 0:
+        return {}
+
+    n = len(u)
+    val = { k:{k2:[None]*n for k2,v2 in v.items()}
+                for k,v in u[0].items()
+          }
+
+    for i,x in enumerate(u):
+        for k, v in x.items():
+            for k2, v2 in v.items():
+                val[k][k2][i] = v2
+
+    ans = {}
+    for k, v in val.items():
+        ans[k] = {}
+        for k2, v2 in v.items():
+            ans[k][k2] = fn(v2)
+    return ans
 
 def save_batch(waves: Union[List[WaveData], List[FexData]]
               ) -> Dict[str,Any]:
@@ -89,3 +112,5 @@ def save_batch(waves: Union[List[WaveData], List[FexData]]
         #waves = waves[i].raw,
         logics = np.hstack([waves[i].logic for i in raw_idx]),
     )
+
+save_dd_batch = lambda u: map_dd(u, save_batch)
