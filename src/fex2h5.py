@@ -247,9 +247,10 @@ if __name__ == '__main__':
         nshots = int(sys.argv[1])
         expname = sys.argv[2]
         runnums = [int(r) for r in list(sys.argv[3:])]
+        print('Before finalizing, clean up to point to common area for output .h5')
         scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files/%s'%(expname,os.environ.get('USER'),socket.gethostname())
         if not os.path.exists(scratchdir):
             os.makedirs(scratchdir)
         main(nshots,expname,runnums,scratchdir)
     else:
-        print('Please give me a number of shots (-1 for all), experiment, a list of run numbers, and output directory is to expt scratch)')
+        print('Please give me a number of shots (-1 for all), experiment name, a list of run numbers, and output directory defaults to expt scratch directory)')
