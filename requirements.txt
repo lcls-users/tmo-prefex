@@ -1,0 +1,3 @@
+pynng
+pydantic
+git+https://github.com/frobnitzem/stream.py@v1.0.0
