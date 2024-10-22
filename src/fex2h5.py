@@ -106,7 +106,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                     #port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],t0=t0s[i],logicthresh=logicthresh[i],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_hsdname(hsdname)
-                    port[rkey][hsdname][k].set_logicthresh(1<<12)
+                    port[rkey][hsdname][k].set_logicthresh(18000)
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)

@@ -361,7 +361,7 @@ class Port:
                 ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
                 logic = cfdLogic(s)
                 e,de,ne = self.scanedges_stupid(logic) # scan the logic vector for hits
-                if len(self.addresses)%4==0:
+                if len(self.addresses)%400==0:
                     self.addsample(r,s,logic)
 
                 self.e += e
