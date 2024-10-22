@@ -136,54 +136,44 @@ class Port:
         return
 
     @classmethod
-    def update_h5(cls,f,port,hsdEvents):
-        rkeys = port.keys()
-        for rkey in rkeys:
-            #print(rkey)
-            hsdnames = port[rkey].keys()
-            for hsdname in hsdnames:
-                #print(hsdname)
-                rkeystr = 'run_%i'%(rkey)
-                rgrp = None
-                nmgrp = None
-                if rkeystr in f.keys():
-                    rgrp = f[rkeystr]
+    def update_h5(cls,f,ports,hsdEvents):
+        hsdnames = ports.keys()
+        for hsdname in hsdnames:
+            #print(hsdname)
+            if hsdname in f.keys():
+                nmgrp = f[hsdname]
+            else:
+                nmgrp = f.create_group(hsdname)
+
+            p = ports[hsdname]
+            for key, port in p.items(): # remember key == port number
+                #print(key)
+                g = None
+                if 'port_%i'%(key) in nmgrp.keys():
+                    g = nmgrp['port_%i'%(key)]
+                    rawgrp = g['raw']
+                    wvgrp = g['waves']
+                    lggrp = g['logics']
                 else:
-                    rgpr = f.create_group(rkeystr)
-                if hsdname in f[rkeystr].keys():
-                    nmgrp = f[rkeystr][hsdname]
-                else:
-                    nmgrp = f[rkeystr].create_group(hsdname)
-        
-                p = port[rkey][hsdname]
-                for key in p.keys(): # remember key == port number
-                    #print(key)
-                    g = None
-                    if 'port_%i'%(key) in nmgrp.keys():
-                        g = nmgrp['port_%i'%(key)]
-                        rawgrp = g['raw']
-                        wvgrp = g['waves']
-                        lggrp = g['logics']
-                    else:
-                        g = nmgrp.create_group('port_%i'%(key))
-                        rawgrp = g.create_group('raw')
-                        wvgrp = g.create_group('waves')
-                        lggrp = g.create_group('logics')
-                    g.create_dataset('tofs',data=p[key].tofs,dtype=np.uint64) 
-                    g.create_dataset('slopes',data=p[key].slopes,dtype=np.int64) 
-                    g.create_dataset('addresses',data=p[key].addresses,dtype=np.uint64)
-                    g.create_dataset('nedges',data=p[key].nedges,dtype=np.uint64)
-                    for k in p[key].waves.keys():
-                        rawgrp.create_dataset(k,data=p[key].raw[k].astype(np.uint16),dtype=np.uint16)
-                        wvgrp.create_dataset(k,data=p[key].waves[k].astype(np.int16),dtype=np.int16)
-                        lggrp.create_dataset(k,data=p[key].logics[k].astype(np.int32),dtype=np.int32)
-                    g.attrs.create('inflate',data=p[key].inflate,dtype=np.uint8)
-                    g.attrs.create('expand',data=p[key].expand,dtype=np.uint8)
-                    g.attrs.create('t0',data=p[key].t0,dtype=float)
-                    g.attrs.create('logicthresh',data=p[key].logicthresh,dtype=np.int32)
-                    g.attrs.create('hsd',data=p[key].hsd,dtype=np.uint8)
-                    #g.attrs.create('size',data=p[key].sz*p[key].inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
-                    g.create_dataset('events',data=hsdEvents)
+                    g = nmgrp.create_group('port_%i'%(key))
+                    rawgrp = g.create_group('raw')
+                    wvgrp = g.create_group('waves')
+                    lggrp = g.create_group('logics')
+                g.create_dataset('tofs',data=port.tofs,dtype=np.uint64)
+                g.create_dataset('slopes',data=port.slopes,dtype=np.int64)
+                g.create_dataset('addresses',data=port.addresses,dtype=np.uint64)
+                g.create_dataset('nedges',data=port.nedges,dtype=np.uint64)
+                for k in port.waves.keys():
+                    rawgrp.create_dataset(k,data=port.raw[k].astype(np.uint16),dtype=np.uint16)
+                    wvgrp.create_dataset(k,data=port.waves[k].astype(np.int16),dtype=np.int16)
+                    lggrp.create_dataset(k,data=port.logics[k].astype(np.int32),dtype=np.int32)
+                g.attrs.create('inflate',data=port.inflate,dtype=np.uint8)
+                g.attrs.create('expand',data=port.expand,dtype=np.uint8)
+                g.attrs.create('t0',data=port.t0,dtype=float)
+                g.attrs.create('logicthresh',data=port.logicthresh,dtype=np.int32)
+                g.attrs.create('hsd',data=port.hsd,dtype=np.uint8)
+                #g.attrs.create('size',data=port.sz*port.inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
+                g.create_dataset('events',data=hsdEvents)
         print('leaving Port.update_h5()')
         return 
         
@@ -217,26 +207,16 @@ class Port:
 
     def addsample(self,o,w,l):
         eventnum = len(self.addresses)
-        if eventnum<100:
-            if eventnum%10<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        elif eventnum<1000:
-            if eventnum%100<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        elif eventnum<10000:
-            if eventnum%1000<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
-        else:
-            if eventnum%10000<10: 
-                self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
-                self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
-                self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
+        cap = 100
+        while eventnum > cap:
+            cap *= 10
+            if cap == 100000:
+                break
+        z = cap//10
+        if eventnum % z < 10:
+            self.raw.update( {'shot_%i'%eventnum:np.copy(o)} )
+            self.waves.update( {'shot_%i'%eventnum:np.copy(w)} )
+            self.logics.update( {'shot_%i'%eventnum:np.copy(l)} )
         return self
 
 
@@ -348,7 +328,6 @@ class Port:
         e = []
         de = []
         ne = 0
-        r = []
         goodlist = [type(s)!=type(None) for s in slist]
         if not np.prod(goodlist).astype(bool):
             print(goodlist) 
@@ -356,17 +335,18 @@ class Port:
         else:
             for i,s in enumerate(slist):
                 if len(self.addresses)%100==0:
-                    self.r = list(np.copy(s).astype(np.int16))
+                    self.r = list(s.astype(np.int16))
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
                 logic = cfdLogic(s)
                 e,de,ne = self.scanedges_stupid(logic) # scan the logic vector for hits
-                if len(self.addresses)%4==0:
-                    self.addsample(r,s,logic)
 
                 self.e += e
                 self.de += de
                 self.ne += ne
+
+            if len(self.addresses)%4==0: # last call overwrites prev.
+                self.addsample([], s, logic)
 
         if self.initState:
             self.addresses = [np.uint64(0)]
