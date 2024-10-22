@@ -16,20 +16,20 @@
 #SBATCH --gpus 0
 
 host=`hostname`
+export expname=$1
+export runnum=$2
 source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
 . /sdf/home/r/rogersdd/src/tmox1016823/venv/bin/activate
-export scratchpath=/sdf/data/lcls/ds/tmo/tmox1016823/scratch/$USER/h5files/$host
+export scratchpath=/sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/$host
 test -d $scratchpath || mkdir -p $scratchpath
-export expname=tmox1016823
 export nshots=100000
 export configfile=$scratchpath/$expname.hsdconfig.h5
 export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
-printf -v runstr "r%04d" $1
+printf -v runstr "r%04d" $runnum
 
 # seems to include s000 .. s019
 if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
-	python3 ./src/set_configs.py $configfile
-	python3 ./src/hits2h5_minimal.py $1
+	python3 ./src/fex2h5.py $nshots $expname $runnum
 else
 	echo "XTC2 file not found for run $expname:$runstr"
 fi
