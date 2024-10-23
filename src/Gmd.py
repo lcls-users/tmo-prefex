@@ -3,7 +3,11 @@ import numpy as np
 class Gmd:
     def __init__(self):
         self.en = []
-        self.initState = True
+        self.runkey = int(0)
+        self.initState:bool = True
+        self.unit:str = 'uJ'
+        self.scale:np.float16 = 1000
+        self.name:str = 'gmd'
         return 
 
     @classmethod
@@ -20,12 +24,20 @@ class Gmd:
     @classmethod
     def update_h5(cls,f,gmd,gmdEvents):
         grpgmd = None
-        if 'gmd' in f.keys():
-            grpgmd = f['gmd']
-        else:
-            grpgmd = f.create_group('gmd')
-        grpgmd.create_dataset('gmdenergy',data=gmd.en,dtype=np.uint16)
-        grpgmd.create_dataset('events',data=gmdEvents)
+        grprun = None
+        for rkey in gmd.keys():
+            for gmdname in gmd[rkey].keys():
+                thisgmd = gmd[rkey][gmdname]
+                rstr = gmd[rkey][gmdname].get_runstr()
+                if rstr not in f.keys():
+                    f.create_group(rstr)
+                if gmdname not in f[rstr].keys():
+                    f[rstr].create_group(gmdname)
+                grpgmd = f[rstr][gmdname]
+                endata = grpgmd.create_dataset('energy',data=thisgmd.en,dtype=np.uint16)
+                endata.attrs.create('unit',data=thisgmd.unit)
+                endata.attrs.create('scale',data=thisgmd.scale)
+                grpgmd.create_dataset('events',data=gmdEvents)
         return
 
     def test(self,e):
@@ -37,11 +49,33 @@ class Gmd:
 
     def process(self,e):
         if self.initState:
-            self.en = [np.uint16(e*1000)]
+            self.en = [np.uint16(e*self.scale)]
         else:
-            self.en += [np.uint16(e*1000)]
+            self.en += [np.uint16(e*self.scale)]
         return True
+
+    def get_runstr(self):
+        return 'run_%04i'%self.runkey
+
+    def get_runkey(self):
+        return self.runkey
+
+    def get_name(self):
+        return self.name
+
+    def set_runkey(self,r:int):
+        self.runkey = r
+        return self
+
+    def set_name(self,n:str):
+        self.name = n
+        return self
 
     def set_initState(self,state):
         self.initState = state
+        return self
+
+    def set_unit(self,unitname='uJ',scale=1000):
+        self.unit = unitname
+        self.scale = scale
         return self

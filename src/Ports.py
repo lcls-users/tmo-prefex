@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.fftpack import dct,dst,rfft,irfft,fft,ifft
-from utils import mypoly,tanhInt,tanhFloat,randomround
+from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean
 import h5py
 import time
 from typing import Type,List
@@ -9,10 +9,10 @@ from typing import Type,List
 #def dctLogic_windowed(s,inflate=1,nrolloff=0,winsz=256,stride=128):
 
 def cfdLogic(s,invfrac=1,offset=2):
-    if len(s)<(offset<<1):
+    if len(s)<(offset):
         print('offset larger than fex window')
         return None
-    return np.array(s[:-offset]) - np.array(s[offset:])>>invfrac
+    return np.array(s[:-offset]).astype(np.int32) - np.array(s[offset:]).astype(int)>>invfrac
 
 def fftLogic_f16(s,inflate=1,nrolloff=128):
     sz = s.shape[0]
@@ -103,8 +103,9 @@ class Port:
         self.hsd = hsd
         self.t0 = t0
         self.nadcs = nadcs
+        self.baseshift = 1<<8
         self.baselim = baselim
-        self.baseline = np.uint32(1<<14)
+        self.baseline = np.uint32(1<<8)
         self.logicthresh = logicthresh
         self.initState = True
         self.inflate = inflate
@@ -127,7 +128,7 @@ class Port:
         self.r = []
 
         self.runkey = 0
-        self.hsdname = 'hsd'
+        self.name = 'hsd'
 
 
     @classmethod
@@ -140,9 +141,9 @@ class Port:
         rkeys = port.keys()
         for rkey in rkeys:
             #print(rkey)
-            hsdnames = port[rkey].keys()
-            for hsdname in hsdnames:
-                #print(hsdname)
+            names = port[rkey].keys()
+            for name in names:
+                #print(name)
                 rkeystr = 'run_%i'%(rkey)
                 rgrp = None
                 nmgrp = None
@@ -150,12 +151,12 @@ class Port:
                     rgrp = f[rkeystr]
                 else:
                     rgpr = f.create_group(rkeystr)
-                if hsdname in f[rkeystr].keys():
-                    nmgrp = f[rkeystr][hsdname]
+                if name in f[rkeystr].keys():
+                    nmgrp = f[rkeystr][name]
                 else:
-                    nmgrp = f[rkeystr].create_group(hsdname)
+                    nmgrp = f[rkeystr].create_group(name)
         
-                p = port[rkey][hsdname]
+                p = port[rkey][name]
                 for key in p.keys(): # remember key == port number
                     #print(key)
                     g = None
@@ -197,15 +198,15 @@ class Port:
     def get_runkey(self):
         return self.runkey
 
-    def get_hsdname(self):
-        return self.hsdname
+    def get_name(self):
+        return self.name
 
     def set_runkey(self,r:int):
         self.runkey = r
         return self
 
-    def set_hsdname(self,n:str):
-        self.hsdname = n
+    def set_name(self,n:str):
+        self.name = n
         return self
 
     def addeverysample(self,o,w,l):
@@ -345,26 +346,30 @@ class Port:
         return self
 
     def process_fex2hits(self,slist,xlist):
+        sampleEvery = 1000
         e = []
         de = []
         ne = 0
         r = []
-        goodlist = [type(s)!=type(None) for s in slist]
-        if not np.prod(goodlist).astype(bool):
+        goodlist = [bool(type(s)!=type(None)) for s in slist]
+        if not all(goodlist):
             print(goodlist) 
             return False
-        else:
-            for i,s in enumerate(slist):
-                if len(self.addresses)%100==0:
-                    self.r = list(np.copy(s).astype(np.int16))
+        elif len(slist)>2:
+            self.set_baseline(quick_mean(slist[0],4))
+            for i,s in enumerate(slist[1:-1]):
+                if len(self.addresses)%sampleEvery==0:
+                    self.r = list(np.copy(s).astype(np.uint16))
+
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=self.inflate,nrollon=self.nrollon,nrolloff=self.nrolloff) #produce the "logic vector"
+
                 logic = cfdLogic(s)
                 e,de,ne = self.scanedges_stupid(logic) # scan the logic vector for hits
-                if len(self.addresses)%400==0:
+                if len(self.addresses)%sampleEvery==0:
                     self.addsample(r,s,logic)
 
-                self.e += e
+                self.e += [xlist[i+1]+v for v in e] # the i+1 is because we are ignoring the front and the back of the 
                 self.de += de
                 self.ne += ne
 

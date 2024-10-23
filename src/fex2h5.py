@@ -49,13 +49,13 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     _ = [e.setoffset(params['l3offset']) for e in ebunch]
     '''
     runhsd=True
+    rungmd=True
     runfzp=False
     runtiming=False
 
     runvls=False
     runebeam=False
     runxtcav=False
-    rungmd=False
 
     '''
     timings = []
@@ -63,7 +63,6 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     vlss = []
     ebeams = []
     xtcavs = []
-    xgmds = []
     '''
 
 
@@ -75,22 +74,30 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     port = {}
     chankeys = {}
     hsds = {}
-    hsdstring = {}
+    gmds = {}
+    xray = {}
+
+
     ds = psana.DataSource(exp=expname,run=runnums)
     detslist = {}
     hsdnames = {}
+    gmdnames = {}
     for r in runnums:
         run = next(ds.runs())
         rkey = run.runnum
         port.update({rkey:{}})
         hsds.update({rkey:{}})
+
+        gmds.update({rkey:{}})
+        xray.update({rkey:{}})
+        
+
         chankeys.update({rkey:{}})
         detslist.update({rkey:[s for s in run.detnames]})
         outnames.update({rkey:'%s/hits.%s.run_%03i.h5'%(scratchdir,expname,rkey)})
 
-        hsdslist = [s for s in detslist[rkey] if re.search('hsd',s)]
-
-        hsdnames.update({rkey:hsdslist})
+        hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
+        gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
 
         print('writing to %s'%outnames[rkey])
         for hsdname in hsdnames[rkey]:
@@ -105,7 +112,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                     #print(k,chankeys[rkey][hsdname][k])
                     #port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],t0=t0s[i],logicthresh=logicthresh[i],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=nr_expand)})
-                    port[rkey][hsdname][k].set_runkey(rkey).set_hsdname(hsdname)
+                    port[rkey][hsdname][k].set_runkey(rkey).set_name(hsdname)
                     port[rkey][hsdname][k].set_logicthresh(18000)
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
@@ -115,6 +122,16 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                         port[rkey][hsdname][k].setRollOff(1<<6)
             else:
                 runhsd = False
+
+        for gmdname in gmdnames[rkey]:
+            if rungmd and gmdname in detslist[rkey]:
+                gmds[rkey].update({gmdname:run.Detector(gmdname)}) 
+                xray[rkey].update({gmdname:Gmd()})
+                xray[rkey][gmdname].set_name(gmdname)
+                if re.search('x',gmdname):
+                    xray[rkey][gmdname].set_unit('0.1uJ',scale=1e4)
+            else:
+                rungmd = False
 
         '''
         print('processing run %i'%rkey)
@@ -128,12 +145,9 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
         else:
             runtiming = False
         '''
-        wv = {}
-        wv_logic = {}
         init = True 
-        vsize = 0
         hsdEvents = []
-
+        gmdEvents = []
 
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
 
@@ -141,11 +155,24 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
             completeEvent:List[bool] = [True]
             if eventnum > nshots:
                 break
-            #if eventnum%50==0: print('running event %i'%eventnum)
-            ## test hsds
-            if runhsd and bool(np.prod(completeEvent)):
+
+            #test readbacks for each of detectors for given event
+
+            ## if failed test of gmd, then can't normalize, so skip event.
+            if rungmd and all(completeEvent):
+                if gmds[rkey] is not None:
+                    for gmdname in gmdnames[rkey]:
+                        if gmds[rkey][gmdname] is not None:
+                            completeEvent += [xray[rkey][gmdname].test(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))]
+                        else:
+                            completeEvent += [False]
+                else:
+                    completeEvent += [False]
+
+            ## if failed test of hsds, then NoneType for some detector, so skip event.
+            if runhsd and all(completeEvent):
                 for i,hsdname in enumerate(hsds[rkey].keys()):
-                    if (type(hsds[rkey][hsdname]) != None): 
+                    if (hsds[rkey][hsdname] is not None): 
                         for key in chankeys[rkey][hsdname]: # here key means 'port number'
                             if is_fex:
                                 if (hsds[rkey][hsdname].raw.peaks(evt) != None):
@@ -164,12 +191,19 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                         completeEvent += [False]
 
 
-
+            #############################################
             ## finish testing all detectors to measure ##
-            ## before processing ##
+            ############ before processing ##############
+            #############################################
+
+            ## process gmds
+
+            if rungmd and all(completeEvent):
+                for gmdname in gmdnames[rkey]:
+                    xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))
 
             ## process hsds
-            if runhsd and bool(np.prod(completeEvent)):
+            if runhsd and all(completeEvent):
                 for hsdname in hsds[rkey].keys():
                     ''' HSD-Abaco section '''
                     for key in chankeys[rkey][hsdname]: # here key means 'port number'
@@ -191,15 +225,19 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                         port[rkey][hsdname][key].set_baseline(baseline).process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
 
             ## redundant events vec
-            if bool(np.prod(completeEvent)):
+            if all(completeEvent):
                 if runhsd:
                     hsdEvents += [eventnum]
+                if rungmd:
+                    gmdEvents += [eventnum]
 
             if init:
                 init = False
                 for hsdname in port[rkey].keys():
                     for key in port[rkey][hsdname].keys():
                         port[rkey][hsdname][key].set_initState(False)
+                for gmdname in xray[rkey].keys():
+                    xray[rkey][gmdname].set_initState(False)
 
             eventnum += 1
 
@@ -225,12 +263,17 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                     print('writing to %s'%outnames[rkey])
                     if runhsd:
                         Port.update_h5(f,port,hsdEvents)
+                    if rungmd:
+                        Gmd.update_h5(f,xray,gmdEvents)
 
             elif eventnum>900 and eventnum%1000==0:
                 with h5py.File(outnames[rkey],'w') as f:
                     print('writing to %s'%outnames[rkey])
                     if runhsd:
                         Port.update_h5(f,port,hsdEvents)
+                    if rungmd:
+                        Gmd.update_h5(f,xray,gmdEvents)
+
         # end event loop
 
  
