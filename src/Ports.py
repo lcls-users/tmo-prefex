@@ -150,7 +150,8 @@ class Port:
             names = port[rkey].keys()
             for name in names:
                 #print(name)
-                rkeystr = port[rkey][name].get_runstr()
+                testkey = [k for k in port[rkey][name].keys()][0]
+                rkeystr = port[rkey][name][testkey].get_runstr()
                 rgrp = None
                 nmgrp = None
                 if rkeystr in f.keys():

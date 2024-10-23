@@ -12,8 +12,9 @@ from typing import Type,List
 
 from Ports import *
 from Ebeam import *
-from Vls import *
+#from Vls import *
 from Gmd import *
+from Spect import *
 from Config import Config
 from utils import *
 
@@ -50,7 +51,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     '''
     runhsd=True
     rungmd=True
-    runfzp=False
+    runlcams=False
     runtiming=False
 
     runvls=False
@@ -59,7 +60,6 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
 
     '''
     timings = []
-    fzps = []
     vlss = []
     ebeams = []
     xtcavs = []
@@ -76,12 +76,15 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     hsds = {}
     gmds = {}
     xray = {}
+    piranhas = {}
+    spect = {}
 
 
     ds = psana.DataSource(exp=expname,run=runnums)
     detslist = {}
     hsdnames = {}
     gmdnames = {}
+    pirnames = {}
     for r in runnums:
         run = next(ds.runs())
         rkey = run.runnum
@@ -90,6 +93,9 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
 
         gmds.update({rkey:{}})
         xray.update({rkey:{}})
+
+        piranhas.update({rkey:{}})
+        spect.update({rkey:{}})
         
 
         chankeys.update({rkey:{}})
@@ -98,6 +104,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
 
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
+        pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
 
         print('writing to %s'%outnames[rkey])
         for hsdname in hsdnames[rkey]:
@@ -127,19 +134,24 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
             if rungmd and gmdname in detslist[rkey]:
                 gmds[rkey].update({gmdname:run.Detector(gmdname)}) 
                 xray[rkey].update({gmdname:Gmd()})
-                xray[rkey][gmdname].set_runkey().set_name(gmdname)
+                xray[rkey][gmdname].set_runkey(rkey).set_name(gmdname)
                 if re.search('x',gmdname):
                     xray[rkey][gmdname].set_unit('0.1uJ',scale=1e4)
             else:
                 rungmd = False
 
+        print('enable Pirnanha later')
+        """
+        for pirname in pirnames[rkey]:
+            if runpiranha and pirname in detslist[rkey]:
+                piranhas[rkey].update({pirname:run.Detector(pirname)})
+                spect[rkey].update({pirname:Piranha()})
+        else:
+            runpiranha = False
+        """
+
         '''
         print('processing run %i'%rkey)
-        if runfzp and 'tmo_fzppiranha' in run.detnames:
-            fzps += [run.Detector('tmo_fzppiranha')]
-        else:
-            runfzp = False
-
         if runtiming and '' in runs[r].detnames:
             timings += [runs[r].Detector('timing')]
         else:
@@ -148,6 +160,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
         init = True 
         hsdEvents = []
         gmdEvents = []
+        fzpEvents = []
 
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
 
