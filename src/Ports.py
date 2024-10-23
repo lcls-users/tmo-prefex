@@ -130,6 +130,12 @@ class Port:
         self.runkey = 0
         self.name = 'hsd'
 
+    def get_runstr(self):
+        return 'run_%04i'%self.runkey
+
+    def get_runkey(self):
+        return self.runkey
+
 
     @classmethod
     def slim_update_h5(cls,f,port,hsdEvents):
@@ -144,7 +150,7 @@ class Port:
             names = port[rkey].keys()
             for name in names:
                 #print(name)
-                rkeystr = 'run_%i'%(rkey)
+                rkeystr = port[rkey][name].get_runstr()
                 rgrp = None
                 nmgrp = None
                 if rkeystr in f.keys():

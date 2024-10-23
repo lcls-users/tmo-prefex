@@ -127,7 +127,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
             if rungmd and gmdname in detslist[rkey]:
                 gmds[rkey].update({gmdname:run.Detector(gmdname)}) 
                 xray[rkey].update({gmdname:Gmd()})
-                xray[rkey][gmdname].set_name(gmdname)
+                xray[rkey][gmdname].set_runkey().set_name(gmdname)
                 if re.search('x',gmdname):
                     xray[rkey][gmdname].set_unit('0.1uJ',scale=1e4)
             else:
