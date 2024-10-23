@@ -21,7 +21,7 @@ from stream import (
 )
 
 from new_port import PortConfig, WaveData, FexData
-from combine_port import save_dd_batch, write_h5
+from combine_port import save_dd_batch, Batch
 from Ebeam import *
 from Vls import *
 from Gmd import *
@@ -168,17 +168,17 @@ def run_hsds(run, ports, hsds, chankeys, start_event=0):
             yield out
             eventnum += 1
 
-# inp: Iterator[Tuple[ int, Dict[str,Dict[int,Port]], List[int] ]]
 @sink
-def write_out(inp, ports, outname):
+def write_out(inp : Iterator[Batch], outname: str) -> None:
     #if runhsd: # assume this is true because you called me
     for batch in inp:
+        print(batch)
         #for hsdname in hsds.keys():
         #    print('%s: writing event %i,\tnedges = %s'%(hsdname, eventnum,[ports[hsdname][k].getnedges() for k in chankeys[hsdname]] ))
 
         print('writing to %s'%outname)
         with h5py.File(outname,'w') as f:
-            write_h5(f, ports, batch)
+            batch.write_h5(f)
 
 def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
   
@@ -232,7 +232,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
         #>> takei(seq(0, 10))
 
         # executes when connected to sink:
-        s >> write_out(ports, outname)
+        s >> write_out(outname)
 
     print("Hello, I'm done now.  Have a most excellent day!")
 
