@@ -33,6 +33,12 @@ def mydst(smat,x):
 
 # then add the frequency scaled version
 # then add the zeros append for oversampling
+def quick_mean(lints,baseshift=2):
+    if len(lints)<(1<<baseshift):
+        print('too short for quick mean')
+        return None
+    return np.uint32( np.sum(lints[:1<<baseshift])>>baseshift )
+
 
 
 def randomround(x:float,rng):

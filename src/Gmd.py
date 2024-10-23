@@ -1,4 +1,28 @@
+from typing import Optional
+
 import numpy as np
+from pydantic import BaseModel
+
+class GmdConfig(BaseModel):
+    unit: str = 'uJ'
+    scale: float = 1000
+    name: str = 'gmd'
+
+class GmdData:
+    def __init__(self, cfg: GmdConfig, energy: Optional[float]):
+        self.cfg = cfg
+        if energy is None or energy < 0:
+            self.ok = False
+            self.energy = 0
+        else:
+            self.ok = True
+            self.energy = np.uint16(energy*1000)
+
+class GmdRun:
+    datasets = [
+                ('events', np.uint32),
+                ('energy', np.uint16),
+            ]
 
 class Gmd:
     def __init__(self):

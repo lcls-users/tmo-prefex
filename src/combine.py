@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Union
+from collections.abc import Callable
 
 from new_port import WaveData, FexData, PortConfig
 
@@ -107,28 +108,37 @@ def should_save_raw(eventnum):
             break
     return (eventnum % mod) < 10
 
-def map_dd(u: List[Dict[str,Dict[int,Any]]],
-           fn
+def map_dd(u: List[List[Dict[str,Dict[int,Any]]]],
+           fn: Callable[ [List[List[Any]]], Any ]
           ) -> Dict[str,Dict[int,Any]]:
     """ Join together all values from the inputs
         under their respective dictionary key.
+
+        Transpose the indices so that the outer list
+        dimension (events) is the inner one.
         
-        Then run the function on each list
-        to produce a dict holding the function result
+        Then run the function on each list of lists,
+        indexed by detector type x events.
+        The result is a dict holding the function result
         as each value.
     """
     if len(u) == 0:
         return {}
 
+    m = len(u[0])
     n = len(u)
-    val = { k:{k2:[None]*n for k2,v2 in v.items()}
-                for k,v in u[0].items()
+    def mk_empty():
+        return [ [None]*n for i in range(m) ]
+
+    val = { k:{k2:mk_empty() for k2,v2 in v.items()}
+                for k,v in u[0][0].items()
           }
 
-    for i,x in enumerate(u):
-        for k, v in x.items():
-            for k2, v2 in v.items():
-                val[k][k2][i] = v2
+    for i,x in enumerate(u): # list elems (inner)
+        for j, y in enumerate(x): # tuple elems (outer)
+            for k, v in y.items():
+                for k2, v2 in v.items():
+                    val[k][k2][j][i] = v2
 
     ans = {}
     for k, v in val.items():
@@ -137,8 +147,9 @@ def map_dd(u: List[Dict[str,Dict[int,Any]]],
             ans[k][k2] = fn(v2)
     return ans
 
-def save_batch(waves: Union[List[WaveData], List[FexData]]
-              ) -> Dict[str,Dict[int,Any]]:
+def save_hsd(ans: Dict[str,Dict[int,Any]],
+            , waves: Union[List[WaveData], List[FexData]]
+            ):
     """ Save a batch of data.
         Usually called every 100-th event or so.
     """
@@ -167,7 +178,7 @@ def save_batch(waves: Union[List[WaveData], List[FexData]]
             logic_lens.append(v)
             k += u+v
 
-    return dict(
+    ans[
         cfg = waves[0].cfg,
         events = events,
         addresses = np.cumsum(nedges)-nedges[0],
@@ -184,5 +195,12 @@ def save_batch(waves: Union[List[WaveData], List[FexData]]
         #waves = waves[i].raw,
     )
 
-# Convert a batch (aka list) of dict-of-dicts to a dict-of-dict-of-(h5-like dicts)
-save_dd_batch = lambda u: Batch( map_dd(u, save_batch) )
+def save_all(detector_data):
+    ans = add_hsd(detector_data[0])
+
+# Convert a list of (hsd, gmd) data tuples
+# to a Batch
+def save_dd_batch(elems):
+    info = map_dd(u, save_hsd)
+    return Batch(map_dd(elems, save_))
+
