@@ -171,13 +171,13 @@ def run_hsds(run, ports, hsds, chankeys, start_event=0):
 @sink
 def write_out(inp : Iterator[Batch], outname: str) -> None:
     #if runhsd: # assume this is true because you called me
-    for batch in inp:
-        print(batch)
-        #for hsdname in hsds.keys():
+    for i, batch in enumerate(inp):
+        #for hsdname, p in batch.items():
         #    print('%s: writing event %i,\tnedges = %s'%(hsdname, eventnum,[ports[hsdname][k].getnedges() for k in chankeys[hsdname]] ))
 
-        print('writing to %s'%outname)
-        with h5py.File(outname,'w') as f:
+        name = outname[:-2] + f"{i}.h5"
+        print('writing to %s'%name)
+        with h5py.File(name,'w') as f:
             batch.write_h5(f)
 
 def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
