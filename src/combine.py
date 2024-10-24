@@ -1,14 +1,14 @@
 from typing import List, Dict, Any, Union
 from collections.abc import Callable
 
-from new_port import WaveData, FexData, PortConfig
+from new_port import PortConfig
+from Gmd import GmdConfig
 
 import numpy as np
 from stream import filter
 
-def load_data(cfg, data, datasets) -> Dict[str,np.ndarray]:
-    ret = {'cfg': cfg}
-    for name, dtype in datasets:
+def load_data(ret, data) -> Dict[str,np.ndarray]:
+    for name in data.keys():
         ret[name] = data[name][:]
     return ret
 
@@ -25,22 +25,25 @@ class Batch(dict):
     """ Class to hold and concatenate a dict-of-dict-of (h5-like dicts)
         as produced by save_batch.
     """
-    datasets=[ ('events', np.uint32),
-               ('addresses', np.uint64),
-               ('nedges', np.uint64),
-               ('tofs', np.uint64),
-               ('slopes', np.int64),
-               ('rl_events', np.uint32),
-               ('rl_addresses', np.uint64),
-               ('raw_lens', np.uint16),
-               ('logic_lens', np.uint16),
-               ('rl_data', np.int32),
-             ]
-    def __init__(self, data):
-        super().__init__(data)
+    dtypes = {'events': np.uint32,
+              # from HSD detectors
+              'addresses': np.uint64,
+              'nedges': np.uint64,
+              'tofs': np.uint64,
+              'slopes': np.int64,
+              'rl_events': np.uint32,
+              'rl_addresses': np.uint64,
+              'raw_lens': np.uint16,
+              'logic_lens': np.uint16,
+              'rl_data': np.int32,
+              # from GMD detectors
+              'energies': np.int16,
+             }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def extend(self, *data):
-        print("FIXME: need to update *addresses")
+        raise NotImplementedError("keys, datasets, tbdh")
         for k1, v1 in self.items():
             for k2, v2 in v1.items():
                 ret = {}
@@ -61,41 +64,37 @@ class Batch(dict):
 
     @classmethod
     def from_h5(cls, f):
-        #ports = {}
-        data = {}
-        for k1, v1 in f.items():
-            #ports[k1] = {}
-            data[k1] = {}
-            for k2, v2 in v1.items():
-                cfg = PortConfig.model_validate_json(
-                                            v2.attrs["PortConfig"])
-                data[k1][k2] = load_data(cfg, v2, cls.datasets)
+        data = cls()
+
+        for k, v in f.items():
+            # TODO: parse k as (name, int)
+            #
+            # TODO: determine type of detector (from k?)
+            #       and gather config. options here.
+            ret = {"PortConfig": PortConfig.model_validate_json(
+                                        v.attrs["PortConfig"])
+                  }
+            data[k] = load_data(ret, v)
 
         return cls(data)
 
     def write_h5(self, f):
-        for hsdname, p in self.items():
+        for hsdname, data in self.items():
             if hsdname in f.keys():
                 nmgrp = f[hsdname]
             else:
                 nmgrp = f.create_group(hsdname)
 
-            for key, data in p.items(): # remember key == port number
-                if 'port_%i'%(key) in nmgrp.keys():
-                    g = nmgrp['port_%i'%(key)]
-                else:
-                    g = nmgrp.create_group('port_%i'%(key))
+            for name, data in self.items():
+                dtype = self.dataset[name]
+                g.create_dataset(name,
+                                 data=np.array(data, dtype=dtype),
+                                 dtype=dtype)
 
-                for name, dtype in self.datasets:
-                    g.create_dataset(name,
-                                     data=np.array(data[name], dtype=dtype),
-                                     dtype=dtype)
-
-                # Store PortConfig in a json string.
-                g.attrs.create("PortConfig",
-                               data=data['cfg'].model_dump_json())
-                #port = data['cfg']
-                #g.attrs.create('size',data=port.sz*port.inflate,dtype=np.uint64) ### need to also multiply by expand #### HERE HERE HERE HERE
+            # FIXME: generalize to other config types.
+            # Store PortConfig in a json string.
+            g.attrs.create("PortConfig",
+                           data=data["PortConfig"].model_dump_json())
 
 def should_save_raw(eventnum):
     # first 10 of every 10, then first 10 of every 100, ...
@@ -108,99 +107,44 @@ def should_save_raw(eventnum):
             break
     return (eventnum % mod) < 10
 
-def map_dd(u: List[List[Dict[str,Dict[int,Any]]]],
-           fn: Callable[ [List[List[Any]]], Any ]
-          ) -> Dict[str,Dict[int,Any]]:
-    """ Join together all values from the inputs
+def map_dict(u: List[List[Dict]],
+             *fn: Callable[ [List[Any]], Dict ]
+            ) -> Dict:
+    """ Batch together all values from the inputs
         under their respective dictionary key.
 
         Transpose the indices so that the outer list
         dimension (events) is the inner one.
         
-        Then run the function on each list of lists,
-        indexed by detector type x events.
+        Then, for each detector, run that detector's
+        data batching function on each list.
         The result is a dict holding the function result
         as each value.
     """
     if len(u) == 0:
         return {}
 
-    m = len(u[0])
-    n = len(u)
+    m = len(u[0]) # detectors
+    n = len(u)    # events
     def mk_empty():
         return [ [None]*n for i in range(m) ]
 
-    val = { k:{k2:mk_empty() for k2,v2 in v.items()}
-                for k,v in u[0][0].items()
-          }
+    val = { k:mk_empty() for for k in u[0][0].keys() }
 
     for i,x in enumerate(u): # list elems (inner)
         for j, y in enumerate(x): # tuple elems (outer)
             for k, v in y.items():
-                for k2, v2 in v.items():
-                    val[k][k2][j][i] = v2
+                val[k][j][i] = v2
 
     ans = {}
     for k, v in val.items():
-        ans[k] = {}
-        for k2, v2 in v.items():
-            ans[k][k2] = fn(v2)
+        ans[k] = fn(v)
     return ans
 
-def save_hsd(ans: Dict[str,Dict[int,Any]],
-            , waves: Union[List[WaveData], List[FexData]]
-            ):
-    """ Save a batch of data.
-        Usually called every 100-th event or so.
+def save_dict_batch(elems, *fns) -> Batch:
+    """ Convert a list of (hsd, gmd, ...) data tuples to a Batch.
+    fns should correspond to the type of tuples passed.
+
+    So (hsd, gmd) should use save_dict_batch(elems, save_hsd, save_gmd)
     """
-    events = [x.event for x in waves]
-    nedges = [x.nedges for x in waves]
-
-    # combine [raw,logic] together
-    # at ea. rl_event[i], rl_addresses[i]
-    # and identify raw_len[i] and logic_len[i] separately
-    rl_idx = []
-    rl_events = []
-    rl_addresses = []
-    raw_lens = []
-    logic_lens = []
-    k = 0
-    for i, ev in enumerate(events):
-        if should_save_raw(ev):
-            u = len(waves[i].raw)
-            v = len(waves[i].logic)
-            if u+v == 0:
-                continue
-            rl_idx.append(i)
-            rl_events.append(ev)
-            rl_addresses.append(k)
-            raw_lens.append(u)
-            logic_lens.append(v)
-            k += u+v
-
-    ans[
-        cfg = waves[0].cfg,
-        events = events,
-        addresses = np.cumsum(nedges)-nedges[0],
-        tofs = concat(x.tofs for x in waves),
-        slopes = concat(x.slopes for x in waves),
-        nedges = nedges,
-
-        rl_events = rl_events,
-        rl_addresses = rl_addresses,
-        raw_lens = raw_lens,
-        logic_lens = logic_lens,
-        rl_data = concat(concat([waves[i].raw,waves[i].logic])
-                              for i in rl_idx ),
-        #waves = waves[i].raw,
-    )
-
-def save_all(detector_data):
-    ans = add_hsd(detector_data[0])
-
-# Convert a list of (hsd, gmd) data tuples
-# to a Batch
-def save_dd_batch(elems):
-    info = map_dd(u, save_hsd)
-    return Batch(map_dd(elems, save_))
-
+    return batch_dict(elems, *fns)

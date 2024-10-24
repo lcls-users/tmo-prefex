@@ -4,14 +4,14 @@ If you have per-event information, talk to WaveData or FexData
 about it.
 """
 
-from typing import List, Any
+from typing import List, Any, Union
 import time
 
 import numpy as np
 from pydantic import BaseModel
 
 from Ports import cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
-from utils import mypoly,tanhInt,tanhFloat,randomround
+from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
 
@@ -21,7 +21,7 @@ class PortConfig(BaseModel):
     id: int
     chankey: int # was hsd # was hsd
     is_fex: bool
-    hsdname: str
+    name: str
     inflate: int = 1
     expand: int = 1
     logic_thresh: int = -1*(1<<20) # was logicthresh
@@ -166,6 +166,8 @@ class WaveData(PortData):
         return True
 
 class FexData(PortData):
+    baseline: np.uint32
+
     def __init__( self
                 , cfg: PortConfig
                 , event: int
@@ -181,7 +183,12 @@ class FexData(PortData):
             self.peak = peak[self.cfg.id][0]
         self.ok = self.peak is not None
 
-    def setup(self) -> "FexData": # was set_baseline
+    def set_baseline(self, val) -> "FexData":
+        self.baseline = np.uint32(val)
+        return self
+
+    def setup(self) -> "FexData":
+        "compute and set self.{baseline, xlist, slist}"
         xlist: List[int] = []
         slist: List[np.ndarray] = []
 
@@ -222,15 +229,19 @@ class FexData(PortData):
         if not all(goodlist):
             print(f"process_fex2hits: some bad samples, {goodlist}")
             return False
-        for i,s in enumerate(slist):
-            ## no longer needing to correct for the adc offsets. ##
-            ## logic = fftLogic_fex(s,self.baseline,inflate=cfg.inflate,nrollon=cfg.roll_on,nrolloff=cfg.roll_off) #produce the "logic vector"
-            logic = cfdLogic(s)
-            es,des,nes = cfg.scanedges_stupid(logic) # scan the logic vector for hits
+        elif len(slist) > 2:
+            self.baseline = quick_mean(slist[0],4) # uint32
+            for i,s in enumerate(slist[1:-1]):
+                ## no longer needing to correct for the adc offsets. ##
+                ## logic = fftLogic_fex(s,self.baseline,inflate=cfg.inflate,nrollon=cfg.roll_on,nrolloff=cfg.roll_off) #produce the "logic vector"
+                logic = cfdLogic(s)
+                es,des,nes = cfg.scanedges_stupid(logic) # scan the logic vector for hits
 
-            e.extend( es )
-            de.extend( des )
-            ne += nes
+                #e.extend( es )
+                # the i+1 is because we are ignoring the front and the back of xlist
+                e.extend([xlist[i+1]+v for v in es])
+                de.extend( des )
+                ne += nes
 
         if len(slist) > 0:
             self.raw = s.astype(np.uint16, copy=True)
@@ -242,3 +253,54 @@ class FexData(PortData):
         self.slopes = de
         self.nedges = np.uint64(ne)
         return True
+
+def save_hsd(waves: Union[List[WaveData], List[FexData]]
+            ) -> Batch:
+    """ Save a batch of data.
+
+    Gathers up relevant information from the processed data
+    of an hsd-type detector.
+    """
+    if len(waves) == 0:
+        return Batch()
+    events = [x.event for x in waves]
+    nedges = [x.nedges for x in waves]
+
+    # combine [raw,logic] together
+    # at ea. rl_event[i], rl_addresses[i]
+    # and identify raw_len[i] and logic_len[i] separately
+    rl_idx = []
+    rl_events = []
+    rl_addresses = []
+    raw_lens = []
+    logic_lens = []
+    k = 0
+    for i, ev in enumerate(events):
+        if should_save_raw(ev):
+            u = len(waves[i].raw)
+            v = len(waves[i].logic)
+            if u+v == 0:
+                continue
+            rl_idx.append(i)
+            rl_events.append(ev)
+            rl_addresses.append(k)
+            raw_lens.append(u)
+            logic_lens.append(v)
+            k += u+v
+
+    return Batch(
+        PortConfig = waves[0].cfg,
+        events = events,
+        addresses = np.cumsum(nedges)-nedges[0],
+        tofs = concat(x.tofs for x in waves),
+        slopes = concat(x.slopes for x in waves),
+        nedges = nedges,
+
+        rl_events = rl_events,
+        rl_addresses = rl_addresses,
+        raw_lens = raw_lens,
+        logic_lens = logic_lens,
+        rl_data = concat(concat([waves[i].raw,waves[i].logic])
+                              for i in rl_idx ),
+        #waves = waves[i].raw,
+    )
