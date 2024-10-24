@@ -77,7 +77,7 @@ class Batch(dict):
                 nmgrp = f[name]
             else:
                 nmgrp = f.create_group(name)
-            c = f"chan_{chan}" # He's from Cuba.
+            c = str(chan) # hdf5 won't accept numbers as keys
             if c in nmgrp.keys():
                 g = nmgrp[c]
             else:
