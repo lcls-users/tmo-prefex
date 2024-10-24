@@ -9,8 +9,12 @@ class GmdConfig(BaseModel):
     scale: int = 1000
 
 class GmdData:
-    def __init__(self, cfg: GmdConfig, energy: Optional[float]
+    def __init__(self,
+                 cfg: GmdConfig,
+                 event:int,
+                 energy: Optional[float]
                 ) -> None:
+        self.event = event
         self.cfg = cfg
         if energy is None or energy < 0:
             self.ok = False

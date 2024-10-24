@@ -50,7 +50,11 @@ def setup_gmds(run, params):
     gmds = {}
     xray = {}
     for gmdname in gmdnames:
-        gmd[(gmdname,0)] = run.Detector(gmdname)
+        gmd = run.Detector(gmdname)
+        if gmd is None:
+            print(f'run.Detector({gmdname}) is None!')
+            continue
+        gmds[(gmdname,0)] = gmd
 
         cfg = GmdConfig(
             name = gmdname
@@ -123,11 +127,11 @@ def run_gmds(events, gmds, xray,
         completeEvent = True
 
         out = {}
-        for gmdname, gmd in gmds.items():
-            out[gmdname] = GmdData(xray[gmdname],
+        for idx, gmd in gmds.items():
+            out[idx] = GmdData(xray[idx],
                               eventnum,
                               gmd.raw.milliJoulesPerPulse(evt))
-            completeEvent = out[gmdname].ok
+            completeEvent = out[idx].ok
             if not completeEvent:
                 break
 
@@ -242,15 +246,15 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         s >>= split(run_hsds(hsds, ports), run_gmds(gmds, xray))
         # but don't pass items that contain any None-s.
         # (note: classes test as True)
-        #s >>= filter(all)
+        s >>= filter(all)
         if nshots > 0: # truncate to nshots
             s >>= take(nshots)
         # Now chop the stream into lists of length 100.
         s >>= chop(100)
         # Now save each grouping as a "Batch".
-        fake_save = lambda lst: {}
-        #s >>= xmap(batch_data, [save_hsd, save_gmd])
-        s >>= xmap(batch_data, [save_hsd, fake_save])
+        #fake_save = lambda lst: {}
+        #s >>= xmap(batch_data, [save_hsd, fake_save])
+        s >>= xmap(batch_data, [save_hsd, save_gmd])
         # Now group those by increasing size and concatenate them.
         # This makes increasingly large groupings of the output data.
         #s >>= chopper([1, 10, 100, 1000]) >> map(concat_batch) # TODO

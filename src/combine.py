@@ -112,25 +112,23 @@ def batch_data(u: List[ List[Dict] ],
     """
     if len(u) == 0:
         return Batch()
+    assert len(u[0]) == len(fns), "I must have one combination function for each detector type."
 
-    m = len(u[0]) # detectors
     n = len(u)    # events
-    assert m == len(fns)
     def mk_empty():
-        return [ [None]*n for i in range(m) ]
+        return [None]*n
 
-    val = { k:mk_empty() for k in u[0][0].keys() }
+    val = {}
+    for det_outputs in u[0]: # First output for ea. detector type
+        val.update({ k:mk_empty() for k in det_outputs.keys() })
 
     for i,x in enumerate(u): # list elems (inner)
-        for j, y in enumerate(x): # tuple elems (outer)
+        for _, y in enumerate(x): # outputs for ea. detector type
             for k, v in y.items():
-                val[k][j][i] = v
+                val[k][i] = v
 
     ans = {}
-    for k, v in val.items():
-        ans[k] = {}
-        # note all fns should output unique keys,
-        # but 'events' is shared between them
-        for fn, x in zip(fns, v):
-            ans[k].update(fn(x))
+    for fn, det_outputs in zip(fns,u[0]):
+        for k in det_outputs.keys():
+            ans[k] = fn( val[k] )
     return Batch(ans)
