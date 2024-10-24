@@ -21,7 +21,7 @@ from stream import (
 )
 
 from new_port import PortConfig, WaveData, FexData, save_hsd
-from combine import save_dict_batch, Batch
+from combine import batch_data, Batch
 from Ebeam import *
 from Vls import *
 from Gmd import GmdConfig, GmdData, save_gmd
@@ -92,7 +92,7 @@ def setup_hsds(run, params):
                 # or the HSD serial number.
                 chankey = k,
                 is_fex = is_fex,
-                name = name,
+                name = hsdname,
                 inflate = inflate,
                 expand = nr_expand,
                 logic_thresh = 18000,
@@ -136,8 +136,8 @@ def run_gmds(events, gmds, xray,
         else:
             yield None
 
-@source
-def run_hsds(events, ports, hsds,
+@stream
+def run_hsds(events, hsds, ports,
             ) -> Iterator[Optional[EventData]]:
     # assume runhsd is True if this fn. is called
 
@@ -154,7 +154,7 @@ def run_hsds(events, ports, hsds,
             if port.is_fex:
                 peak = hsd.raw.peaks(evt)
                 if peak is None:
-                    print('%i: hsds[%s,%i].raw.peaks(evt) is None'%(eventnum,hsdname,key))
+                    print('%i: hsds[%s].raw.peaks(evt) is None'%(eventnum,repr(idx)))
                     completeEvent = False
                 else:
                     out[idx] = FexData(port,
@@ -164,7 +164,7 @@ def run_hsds(events, ports, hsds,
             else:
                 wave = hsd.raw.waveforms(evt)
                 if wave is None:
-                    print('%i: hsds[%s,%i].raw.waveforms(evt) is None'%(eventnum,hsdname,key))
+                    print('%i: hsds[%s].raw.waveforms(evt) is None'%(eventnum,repr(idx)))
                     completeEvent = False
                 else:
                     out[idx] = WaveData(ports[hsdname][key],
@@ -239,16 +239,18 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         # Run those through both run_hsds and run_gmds,
         # producing a stream of ( Dict[DetectorID,PortData],
         #                         Dict[DetectorID,GmdData] )
-        s >>= split(run_hsds(ports, hsds), run_gmds(gmds, xray))
+        s >>= split(run_hsds(hsds, ports), run_gmds(gmds, xray))
         # but don't pass items that contain any None-s.
         # (note: classes test as True)
-        s >>= filter(all)
+        #s >>= filter(all)
         if nshots > 0: # truncate to nshots
             s >>= take(nshots)
         # Now chop the stream into lists of length 100.
         s >>= chop(100)
         # Now save each grouping as a "Batch".
-        s >>= xmap(save_dict_batch, save_hsd, save_gmd)
+        fake_save = lambda lst: {}
+        #s >>= xmap(batch_data, [save_hsd, save_gmd])
+        s >>= xmap(batch_data, [save_hsd, fake_save])
         # Now group those by increasing size and concatenate them.
         # This makes increasingly large groupings of the output data.
         #s >>= chopper([1, 10, 100, 1000]) >> map(concat_batch) # TODO

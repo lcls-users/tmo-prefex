@@ -4,14 +4,17 @@ If you have per-event information, talk to WaveData or FexData
 about it.
 """
 
-from typing import List, Any, Union
+from typing import List, Any, Union, Dict
 import time
 
 import numpy as np
 from pydantic import BaseModel
 
 from Ports import cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
-from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean
+from utils import (
+    mypoly,tanhInt,tanhFloat,
+    randomround,quick_mean,concat
+)
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
 
@@ -243,7 +246,7 @@ class FexData(PortData):
                 de.extend( des )
                 ne += nes
 
-        if len(slist) > 0:
+        if len(slist) > 2:
             self.raw = s.astype(np.uint16, copy=True)
             self.logic = logic
         else:
@@ -254,15 +257,26 @@ class FexData(PortData):
         self.nedges = np.uint64(ne)
         return True
 
+def should_save_raw(eventnum):
+    # first 10 of every 10, then first 10 of every 100, ...
+    mod = 10
+    cap = 100
+    while eventnum > cap:
+        mod *= 10
+        cap *= 10
+        if cap == 100000:
+            break
+    return (eventnum % mod) < 10
+
 def save_hsd(waves: Union[List[WaveData], List[FexData]]
-            ) -> Batch:
+            ) -> Dict[str,Any]:
     """ Save a batch of data.
 
     Gathers up relevant information from the processed data
     of an hsd-type detector.
     """
     if len(waves) == 0:
-        return Batch()
+        return {}
     events = [x.event for x in waves]
     nedges = [x.nedges for x in waves]
 
@@ -288,7 +302,7 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
             logic_lens.append(v)
             k += u+v
 
-    return Batch(
+    return dict(
         PortConfig = waves[0].cfg,
         events = events,
         addresses = np.cumsum(nedges)-nedges[0],

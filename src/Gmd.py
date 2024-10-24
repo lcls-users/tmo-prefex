@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 import numpy as np
 from pydantic import BaseModel
@@ -19,16 +19,17 @@ class GmdData:
             self.ok = True
             self.energy = np.uint16(energy*self.cfg.scale)
 
-def save_gmd(data: List[GmdData]) -> Batch:
+def save_gmd(data: List[GmdData]) -> Dict[str,Any]:
     """ Save a batch of data.
 
     Gathers up relevant information from the processed data
     of a gmd-type detector.
     """
     if len(data) == 0:
-        return Batch()
-    return Batch(
+        return {}
+    return dict(
         events   = [x.event for x in data],
         energies = [x.energy for x in data],
         GmdConfig = data[0].cfg,
     )
+

@@ -1,8 +1,8 @@
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 from collections.abc import Callable
 
-from new_port import PortConfig
-from Gmd import GmdConfig
+from new_port import PortConfig, WaveData, FexData
+from Gmd import GmdConfig, GmdData
 
 import numpy as np
 from stream import filter
@@ -12,21 +12,13 @@ def load_data(ret, data) -> Dict[str,np.ndarray]:
         ret[name] = data[name][:]
     return ret
 
-def concat(arg):
-    if isinstance(arg, list):
-        vals = arg
-    else:
-        vals = list(arg)
-    if len(vals) == 0:
-        return np.array([], dtype=np.int32)
-    return np.hstack(vals)
-
 class Batch(dict):
     """ Class to hold and concatenate a dict-of-dict-of (h5-like dicts)
         as produced by save_batch.
     """
     dtypes = {'events': np.uint32,
               # from HSD detectors
+              'PortConfig': 'json',
               'addresses': np.uint64,
               'nedges': np.uint64,
               'tofs': np.uint64,
@@ -37,6 +29,7 @@ class Batch(dict):
               'logic_lens': np.uint16,
               'rl_data': np.int32,
               # from GMD detectors
+              'GmdConfig': 'json',
               'energies': np.int16,
              }
     def __init__(self, *args, **kwargs):
@@ -79,41 +72,37 @@ class Batch(dict):
         return cls(data)
 
     def write_h5(self, f):
-        for hsdname, data in self.items():
-            if hsdname in f.keys():
-                nmgrp = f[hsdname]
+        for (name,chan), data in self.items():
+            if name in f.keys():
+                nmgrp = f[name]
             else:
-                nmgrp = f.create_group(hsdname)
+                nmgrp = f.create_group(name)
+            c = f"chan_{chan}" # He's from Cuba.
+            if c in nmgrp.keys():
+                g = nmgrp[c]
+            else:
+                g = nmgrp.create_group(c)
 
-            for name, data in self.items():
-                dtype = self.dataset[name]
-                g.create_dataset(name,
-                                 data=np.array(data, dtype=dtype),
-                                 dtype=dtype)
+            for k, v in data.items():
+                dtype = self.dtypes[k]
+                if dtype == 'json':
+                    # Store PortConfig, etc. in json strings.
+                    g.attrs.create(k, data=v.model_dump_json())
+                else:
 
-            # FIXME: generalize to other config types.
-            # Store PortConfig in a json string.
-            g.attrs.create("PortConfig",
-                           data=data["PortConfig"].model_dump_json())
+                    g.create_dataset(k,
+                                     data=np.array(v, dtype=dtype),
+                                     dtype=dtype)
 
-def should_save_raw(eventnum):
-    # first 10 of every 10, then first 10 of every 100, ...
-    mod = 10
-    cap = 100
-    while eventnum > cap:
-        mod *= 10
-        cap *= 10
-        if cap == 100000:
-            break
-    return (eventnum % mod) < 10
+def batch_data(u: List[ List[Dict] ],
+               fns: List[ Callable[ [List[Any]], Dict[str,Any]] ]
+              ) -> Batch:
+    """ Converts a list of (hsd, gmd, ...) data tuples to a Batch.
+        fns should correspond to the type of tuples passed.
 
-def map_dict(u: List[List[Dict]],
-             *fn: Callable[ [List[Any]], Dict ]
-            ) -> Dict:
-    """ Batch together all values from the inputs
-        under their respective dictionary key.
+        So (hsd, gmd) should use bach_data(elems, [save_hsd,save_gmd])
 
-        Transpose the indices so that the outer list
+        Basically transposes the indices so that the outer list
         dimension (events) is the inner one.
         
         Then, for each detector, run that detector's
@@ -122,29 +111,26 @@ def map_dict(u: List[List[Dict]],
         as each value.
     """
     if len(u) == 0:
-        return {}
+        return Batch()
 
     m = len(u[0]) # detectors
     n = len(u)    # events
+    assert m == len(fns)
     def mk_empty():
         return [ [None]*n for i in range(m) ]
 
-    val = { k:mk_empty() for for k in u[0][0].keys() }
+    val = { k:mk_empty() for k in u[0][0].keys() }
 
     for i,x in enumerate(u): # list elems (inner)
         for j, y in enumerate(x): # tuple elems (outer)
             for k, v in y.items():
-                val[k][j][i] = v2
+                val[k][j][i] = v
 
     ans = {}
     for k, v in val.items():
-        ans[k] = fn(v)
-    return ans
-
-def save_dict_batch(elems, *fns) -> Batch:
-    """ Convert a list of (hsd, gmd, ...) data tuples to a Batch.
-    fns should correspond to the type of tuples passed.
-
-    So (hsd, gmd) should use save_dict_batch(elems, save_hsd, save_gmd)
-    """
-    return batch_dict(elems, *fns)
+        ans[k] = {}
+        # note all fns should output unique keys,
+        # but 'events' is shared between them
+        for fn, x in zip(fns, v):
+            ans[k].update(fn(x))
+    return Batch(ans)
