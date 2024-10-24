@@ -265,7 +265,7 @@ class Port:
                 stop -= 1
             i += 1
             tofs += [np.uint32(stop)] 
-            slopes += [d[stop]-d[stop-1]] 
+            slopes += [d[stop]] 
         return tofs,slopes,np.uint64(len(tofs))
 
     def scanedges_simple(self,d):
@@ -354,9 +354,9 @@ class Port:
 
     def process_fex2hits(self,slist,xlist):
         sampleEvery = 1000
-        e = []
-        de = []
-        ne = 0
+        thise = []
+        thisde = []
+        thisne = 0
         r = []
         goodlist = [bool(type(s)!=type(None)) for s in slist]
         if not all(goodlist):
@@ -376,22 +376,22 @@ class Port:
                 if len(self.addresses)%sampleEvery==0:
                     self.addsample(r,s,logic)
 
-                self.e += [xlist[i+1]+v for v in e] # the i+1 is because we are ignoring the front and the back of the 
-                self.de += de
-                self.ne += ne
+                thise += [xlist[i+1]+v for v in e] # the i+1 is because we are ignoring the front and the back of the 
+                thisde += [s[v] for v in e]
+                thisne += ne
 
         if self.initState:
             self.addresses = [np.uint64(0)]
-            self.nedges = [np.uint64(ne)]
-            if ne>0:
-                self.tofs += self.e
-                self.slopes += self.de
+            self.nedges = [np.uint64(thisne)]
+            if thisne>0:
+                self.tofs += thise
+                self.slopes += thisde
         else:
             self.addresses += [np.uint64(len(self.tofs))]
-            self.nedges += [np.uint64(self.ne)]
-            if ne>0:
-                self.tofs += self.e
-                self.slopes += self.de
+            self.nedges += [np.uint64(thisne)]
+            if thisne>0:
+                self.tofs += thise
+                self.slopes += thisde
 
         return True
 
