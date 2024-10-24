@@ -1,3 +1,42 @@
+# What is broke...  
+
+When processing mroe than 1000 shots (like 2000) this breaks likely because we hit the raw wave sampling...   
+
+```bash
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+writing to /sdf/data/lcls/ds/tmo/tmox1016823/scratch/coffee/h5files/sdfiana008/hits.tmox1016823.run_076.h5
+Traceback (most recent call last):
+  File "/sdf/home/c/coffee/tmo-prefex/./src/fex2h5.py", line 249, in <module>
+    main(nshots,expname,runnums,scratchdir)
+  File "/sdf/home/c/coffee/tmo-prefex/./src/fex2h5.py", line 235, in main
+    s >> write_out(ports, outname)
+  File "/sdf/home/c/coffee/tmo-prefex/venv/lib/python3.9/site-packages/stream/core.py", line 89, in __rshift__
+    return Stream.pipe(self, outpipe)
+  File "/sdf/home/c/coffee/tmo-prefex/venv/lib/python3.9/site-packages/stream/core.py", line 76, in pipe
+    return out(iter(inp))    # connect streams
+  File "/sdf/home/c/coffee/tmo-prefex/venv/lib/python3.9/site-packages/stream/core.py", line 189, in __call__
+    return self.consumer(iterator, *self.args, **self.kws)
+  File "/sdf/home/c/coffee/tmo-prefex/./src/fex2h5.py", line 175, in write_out
+    for batch in inp:
+  File "/sdf/home/c/coffee/tmo-prefex/src/combine_port.py", line 116, in <lambda>
+    save_dd_batch = lambda u: map_dd(u, save_batch)
+  File "/sdf/home/c/coffee/tmo-prefex/src/combine_port.py", line 76, in map_dd
+    ans[k][k2] = fn(v2)
+  File "/sdf/home/c/coffee/tmo-prefex/src/combine_port.py", line 111, in save_batch
+    raw = np.hstack([waves[i].raw for i in raw_idx]),
+  File "<__array_function__ internals>", line 200, in hstack
+  File "/sdf/group/lcls/ds/ana/sw/conda2/inst/envs/ps-4.6.3/lib/python3.9/site-packages/numpy/core/shape_base.py", line 370, in hstack
+    return _nx.concatenate(arrs, 1, dtype=dtype, casting=casting)
+  File "<__array_function__ internals>", line 200, in concatenate
+ValueError: need at least one array to concatenate
+(venv) [coffee@sdfiana008 tmo-prefex]$ 
+```
+
 # Latest update...
 
 Developed quick ./src/yield.py in order to quickly show ToF yields in 'mrco\_hsd' in order to tune the position of the chamber to beamline in x(+ toward control room) and y(+ up).  
