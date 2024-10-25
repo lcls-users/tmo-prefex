@@ -1,7 +1,8 @@
-""" Yup, I'm a new port.  Unlike the old port, I
-only store static configuration data.
-If you have per-event information, talk to WaveData or FexData
-about it.
+""" Hsd-s (still referred to in many places as Port-s)
+store configuration data for individual ports of an HSD.
+
+Per-event data from an Hsd is stored in
+WaveData or FexData -- depending on the PortConfig.fex flag.
 """
 
 from typing import List, Any, Union, Dict
@@ -10,10 +11,10 @@ import time
 import numpy as np
 from pydantic import BaseModel
 
-from Ports import cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
 from utils import (
-    mypoly,tanhInt,tanhFloat,
-    randomround,quick_mean,concat
+    mypoly, tanhInt, tanhFloat,
+    randomround, quick_mean, concat,
+    cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
 )
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
