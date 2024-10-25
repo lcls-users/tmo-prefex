@@ -1,4 +1,22 @@
 # Latest update...
+Todo, update the .h5 files on /lscratch and then move to /sdf/data/lcls/...  
+
+Thank you Chris O'Grady!  
+```python
+expname = 'tmox1016823'
+runstr = 'r%04i'%(runnum)
+segs = ['%03i'%v for v in arange(careful... count files, find with os.path/file etc.)]
+dslist = [psana.DataSource(files='/sdf/data/lcls/ds/tmo/%s/xtc/%s-%s-%s-c000.xtc2'%(expname,expname,runstr,ss)) for ss in segs]
+```
+
+Chris says also that one can also see what hsd segments are in a file with this command:  
+
+```bash
+detnames -i /sdf/data/lcls/ds/tmo/tmoc00123/xtc/tmoc00123-r0022-s010-c000.xtc2
+```
+
+# Quick Scripts   
+These should go into ./utils folder (not to be confused with ./src/utils.py).  
 
 Developed quick ./src/yield.py in order to quickly show ToF yields in 'mrco\_hsd' in order to tune the position of the chamber to beamline in x(+ toward control room) and y(+ up).  
 Hutch coordinates are +z along propagation of x-ray pulses, +x is toward the roll up door, +y is up.  

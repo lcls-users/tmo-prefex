@@ -33,6 +33,7 @@ class PortConfig(BaseModel):
     nadcs: int = 4
     t0: int = 0
     baselim: int = 1<<6
+    # size: int = p[key].sz*p[key].inflate ### need to also multiply by expand #### HERE HERE HERE HERE
 
     def scanedges_stupid(self,d):
         tofs = []
@@ -166,6 +167,23 @@ class WaveData(PortData):
         self.nedges = np.uint64(ne)
         return True
 
+"""
+TODO: ensure that process() logic follows this pattern:
+
+                                xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
+                                slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
+                        elif eventnum > 100 and hsds[rkey][hsdname].raw.waveforms(evt) is not None:
+                            slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] 
+                            xlist += [0]
+                            wv = hsds[hkey][hsdname].raw.waveforms(evt)[ key ][0]
+                            wvx = np.arange(wv.shape[0])
+                            y = [hsd.raw.peaks(evt)[1][0][1][i] for i in range(len(hsd.raw.peaks(evt)[1][0][1]))]
+                            x = [np.arange(hsd.raw.peaks(evt)[1][0][0][i],hsd.raw.peaks(evt)[1][0][0][i]+len(hsd.raw.peaks(evt)[1][0][1][i])) for i in range(len(y))]
+                            plt.plot(wv)
+                            _=[plt.plot(x[i],y[i]) for i in range(len(y))]
+                            plt.show()
+                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
+"""
 class FexData(PortData):
     baseline: np.uint32
 
@@ -223,24 +241,22 @@ class FexData(PortData):
         cfg = self.cfg
         e = []
         de = []
-        ne = 0
+
         goodlist = [s is not None for s in slist]
         if not all(goodlist):
             print(f"process_fex2hits: some bad samples, {goodlist}")
             return False
         elif len(slist) > 2:
-            self.baseline = quick_mean(slist[0],4) # uint32
-            for i,s in enumerate(slist[1:-1]):
+            for i,s in enumerate(slist[:-1]):
+                if i == 0:
+                    #self.baseline = quick_mean(s,4) # uint32
+                    continue
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=cfg.inflate,nrollon=cfg.roll_on,nrolloff=cfg.roll_off) #produce the "logic vector"
-                logic = cfdLogic(s)
-                es,des,nes = cfg.scanedges_stupid(logic) # scan the logic vector for hits
-
-                #e.extend( es )
-                # the i+1 is because we are ignoring the front and the back of xlist
-                e.extend([xlist[i+1]+v for v in es])
-                de.extend( des )
-                ne += nes
+                es, des, _ = cfdLogic(s) # scan the logic vector for hits
+                start = xlist[i]
+                e.extend([start+v for v in es])
+                de.extend( list(des) )
 
         if len(slist) > 2:
             self.raw = s.astype(np.uint16, copy=True)
@@ -250,7 +266,7 @@ class FexData(PortData):
             self.logic = np.zeros(0, dtype=np.uint16)
         self.tofs = e
         self.slopes = de
-        self.nedges = np.uint64(ne)
+        self.nedges = np.uint16(len(e))
         return True
 
 def should_save_raw(eventnum):

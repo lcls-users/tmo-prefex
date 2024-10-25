@@ -32,8 +32,7 @@ def save_gmd(data: List[GmdData]) -> Dict[str,Any]:
     if len(data) == 0:
         return {}
     return dict(
-        events   = [x.event for x in data],
-        energies = [x.energy for x in data],
+        events   = np.array([x.event for x in data], dtype=np.uint32),
+        energies = np.array([x.energy for x in data], dtype=np.uint16),
         GmdConfig = data[0].cfg,
     )
-
