@@ -1,47 +1,39 @@
+from typing import Optional, Dict, Any, List
+
 import numpy as np
+from pydantic import BaseModel
 
-class Gmd:
-    def __init__(self):
-        self.en = []
-        self.initState = True
-        return 
+class GmdConfig(BaseModel):
+    name: str = 'gmd'
+    unit: str = 'uJ'
+    scale: int = 1000
 
-    @classmethod
-    def slim_update_h5(cls,f,gmd,gmdEvents):
-        grpgmd = None
-        if 'gmd' in f.keys():
-            grpgmd = f['gmd']
+class GmdData:
+    def __init__(self,
+                 cfg: GmdConfig,
+                 event:int,
+                 energy: Optional[float]
+                ) -> None:
+        self.event = event
+        self.cfg = cfg
+        if energy is None or energy < 0:
+            self.ok = False
+            self.energy = 0
         else:
-            grpgmd = f.create_group('gmd')
-        grpgmd.create_dataset('gmdenergy',data=gmd.en,dtype=np.uint16)
-        grpgmd.create_dataset('events',data=gmdEvents)
-        return
+            self.ok = True
+            self.energy = np.uint16(energy*self.cfg.scale)
 
-    @classmethod
-    def update_h5(cls,f,gmd,gmdEvents):
-        grpgmd = None
-        if 'gmd' in f.keys():
-            grpgmd = f['gmd']
-        else:
-            grpgmd = f.create_group('gmd')
-        grpgmd.create_dataset('gmdenergy',data=gmd.en,dtype=np.uint16)
-        grpgmd.create_dataset('events',data=gmdEvents)
-        return
+def save_gmd(data: List[GmdData]) -> Dict[str,Any]:
+    """ Save a batch of data.
 
-    def test(self,e):
-        if type(e)==type(None):
-            return False
-        if e<0:
-            return False
-        return True
+    Gathers up relevant information from the processed data
+    of a gmd-type detector.
+    """
+    if len(data) == 0:
+        return {}
+    return dict(
+        events   = [x.event for x in data],
+        energies = [x.energy for x in data],
+        GmdConfig = data[0].cfg,
+    )
 
-    def process(self,e):
-        if self.initState:
-            self.en = [np.uint16(e*1000)]
-        else:
-            self.en += [np.uint16(e*1000)]
-        return True
-
-    def set_initState(self,state):
-        self.initState = state
-        return self

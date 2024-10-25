@@ -1,6 +1,6 @@
 #!/sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
 
-from typing import Type,List,Dict
+from typing import List,Dict,Optional,Tuple,Union
 from collections.abc import Iterator
 import sys
 import re
@@ -17,16 +17,17 @@ import numpy as np
 from stream import (
     stream, source, sink,
     take, Source, takei, seq,
-    chop, map
+    chop, map, filter
 )
 
-from new_port import PortConfig, WaveData, FexData
-from combine_port import save_dd_batch, write_h5
+from new_port import PortConfig, WaveData, FexData, save_hsd
+from combine import batch_data, Batch
 from Ebeam import *
 from Vls import *
-from Gmd import *
+from Gmd import GmdConfig, GmdData, save_gmd
 from Config import Config
 from utils import *
+from stream_utils import split, xmap
 
 runhsd=True
 runfzp=False
@@ -35,9 +36,38 @@ runtiming=False
 runvls=False
 runebeam=False
 runxtcav=False
-rungmd=False
+rungmd=True
 
-def setup_hsd_ports(run, params):
+# Some types:
+DetectorID   = Tuple[str, int] # ('hsd', 22)
+DetectorData = Union[WaveData, FexData, GmdData]
+EventData    = Dict[DetectorID, DetectorData]
+
+def setup_gmds(run, params):
+    # gmd-s store their output in xray-s
+    gmdnames = [s for s in run.detnames if s.endswith("gmd")]
+    
+    gmds = {}
+    xray = {}
+    for gmdname in gmdnames:
+        gmd = run.Detector(gmdname)
+        if gmd is None:
+            print(f'run.Detector({gmdname}) is None!')
+            continue
+        gmds[(gmdname,0)] = gmd
+
+        cfg = GmdConfig(
+            name = gmdname
+        )
+        if 'x' in gmdname: # or gmdname.endswith('x')
+            cfg.unit = '0.1uJ'
+            cfg.scale = 10000
+
+        xray[(gmdname,0)] = cfg
+    return gmds, xray
+
+def setup_hsds(run, params):
+    # hsd-s store their output in "port"-s
     is_fex = params['is_fex']
     t0s = params['t0s']
     logicthresh = params['logicthresh']
@@ -46,145 +76,132 @@ def setup_hsd_ports(run, params):
     nr_expand = params['expand']
     inflate = params['inflate']
 
-    rkey = run.runnum
-    detslist = [s for s in run.detnames]
-    hsdnames = [s for s in detslist if 'hsd' in s]
+    hsdnames = [s for s in run.detnames if s.endswith('hsd')]
 
-    port = {}
     hsds = {}
-    chankeys = {}
+    ports = {}
     for hsdname in hsdnames:
-        port.update({hsdname:{}})
-        chankeys.update({hsdname:{}})
-        if runhsd:
-            assert hsdname in detslist
-            hsd = run.Detector(hsdname)
-            hsds[hsdname] = hsd
-            for i,k in enumerate(list(hsd.raw._seg_configs().keys())):
-                chankeys[hsdname].update({k:k}) # this we may want to replace with the PCIe address id or the HSD serial number.
-                #print(f'{k} ~> {chankeys[hsdname][k]}')
-                port[hsdname][k] = PortConfig(
-                    id = k,
-                    chankey = chankeys[hsdname][k],
-                    is_fex = is_fex,
-                    hsdname = hsdname,
-                    inflate = inflate,
-                    expand = nr_expand,
-                    logic_thresh = 1<<12,
-                    roll_on = 1<<6,
-                    roll_off = 1<<6,
-                #   t0=t0s[i]
-                #   logicthresh=logicthresh[i]
-                )
-                #port[hsdname].update({k:Port(k,chankeys[hsdname][k],inflate=inflate,expand=nr_expand)})
-                #port[hsdname][k].set_runkey(rkey).set_hsdname(hsdname)
-                #port[hsdname][k].set_logicthresh(1<<12)
-                if is_fex:
-                    #port[hsdname][k].setRollOn((3*int(hsd.raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
-                    #port[hsdname][k].setRollOff((3*int(hsd.raw._seg_configs()[k].config.user.fex.xpost))>>2)
-                    port[hsdname][k].roll_on = (3*int(hsd.raw._seg_configs()[k].config.user.fex.xpre))>>2
-                    port[hsdname][k].roll_off = (3*int(hsd.raw._seg_configs()[k].config.user.fex.xpost))>>2
-                #else:
-                #    port[hsdname][k].setRollOn(1<<6) 
-                #    port[hsdname][k].setRollOff(1<<6)
-    return port, hsds, chankeys
+        hsd = run.Detector(hsdname)
+        if hsd is None:
+            print(f'run.Detector({hsdname}) is None!')
+            continue
+
+        hsds[hsdname] = hsd
+        # FIXME: do we need .raw here?
+        # can the keys() be ordered into a contiguous range?
+        for i,k in enumerate(list(hsd.raw._seg_configs().keys())):
+            ports[(hsdname,k)] = PortConfig(
+                id = k,
+                # may want to use chankey to store the PCIe address id
+                # or the HSD serial number.
+                chankey = k,
+                is_fex = is_fex,
+                name = hsdname,
+                inflate = inflate,
+                expand = nr_expand,
+                logic_thresh = 18000,
+                roll_on = 1<<6,
+                roll_off = 1<<6,
+            #   t0=t0s[i]
+            #   logicthresh=logicthresh[i]
+            )
+            if is_fex:
+                # guessing that 3/4 of the pre and post extension for
+                # threshold crossing in fex is a good range for the
+                # roll on and off of the signal
+                ports[(hsdname,k)].roll_on = (3*int(hsd.raw._seg_configs()[k].config.user.fex.xpre))>>2
+                ports[(hsdname,k)].roll_off = (3*int(hsd.raw._seg_configs()[k].config.user.fex.xpost))>>2
+    return hsds, ports
 
 @source
-def run_hsds(run, ports, hsds, chankeys, start_event=0):
-    # assume runhsd is True if this fn. is called
-    rkey = run.runnum
-    print('starting analysis exp %s for run %i'%(expname,int(rkey)))
+def run_events(run, start_event=0):
+    for i, evt in enumerate(run.events()):
+        yield i+start_event, evt
 
-    '''
-    print('processing run %i'%rkey)
-    if runfzp and 'tmo_fzppiranha' in run.detnames:
-        fzps += [run.Detector('tmo_fzppiranha')]
-    else:
-        runfzp = False
+@stream
+def run_gmds(events, gmds, xray,
+            ) -> Iterator[Optional[EventData]]:
+    # assume rungmd is True if this fn. is called
 
-    if runtiming and '' in runs[r].detnames:
-        timings += [runs[r].Detector('timing')]
-    else:
-        runtiming = False
-    '''
-    #wv = {}
-    #wv_logic = {}
-    #vsize = 0
+    for eventnum, evt in events:
+        completeEvent = True
 
-
-    eventnum = start_event # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
-
-    for evt in run.events():
         out = {}
-        completeEvent:List[bool] = [True]
+        for idx, gmd in gmds.items():
+            out[idx] = GmdData(xray[idx],
+                              eventnum,
+                              gmd.raw.milliJoulesPerPulse(evt))
+            completeEvent = out[idx].ok
+            if not completeEvent:
+                break
+
+        if completeEvent:
+            yield out
+        else:
+            yield None
+
+@stream
+def run_hsds(events, hsds, ports,
+            ) -> Iterator[Optional[EventData]]:
+    # assume runhsd is True if this fn. is called
+
+    for eventnum, evt in events:
+        out = {}
+
         ## test hsds
-        if all(completeEvent):
-            for hsdname, hsd in hsds.items():
-                out[hsdname] = {}
-                if hsd is None: # guard pattern
-                    print(eventnum, f'hsd {hsdname} is None')
-                    completeEvent += [False]
-                    continue
-                for key in chankeys[hsdname]: # here key means 'port number'
-                    if ports[hsdname][key].is_fex:
-                        peak = hsd.raw.peaks(evt)
-                        if peak is None:
-                            print('%i/%i: hsds[%s].raw.peaks(evt) is None'%(rkey,eventnum,hsdname))
-                            completeEvent += [False]
-                        else:
-                            out[hsdname][key] = \
-                                    FexData(ports[hsdname][key],
-                                               eventnum,
-                                               peak=peak)
-                            completeEvent += [out[hsdname][key].ok]
-                    else:
-                        wave = hsd.raw.waveforms(evt)
-                        if wave is None:
-                            out[hsdname][key] = \
-                                    WaveData(ports[hsdname][key],
-                                                eventnum,
-                                                wave=wave)
-                            completeEvent += [out[hsdname][key].ok]
-                        else:
-                            print('%i/%i: hsds[%s].raw.waveforms(evt) is None'%(rkey,eventnum,hsdname))
-                            completeEvent += [False]
+        completeEvent = True
+        for (hsdname, key), port in ports.items():
+            # here key means 'port number'
+            hsd = hsds[hsdname]
+
+            idx = (hsdname, key)
+            if port.is_fex:
+                peak = hsd.raw.peaks(evt)
+                if peak is None:
+                    print('%i: hsds[%s].raw.peaks(evt) is None'%(eventnum,repr(idx)))
+                    completeEvent = False
+                else:
+                    out[idx] = FexData(port,
+                                       eventnum,
+                                       peak=peak)
+                    completeEvent = out[idx].ok
+            else:
+                wave = hsd.raw.waveforms(evt)
+                if wave is None:
+                    print('%i: hsds[%s].raw.waveforms(evt) is None'%(eventnum,repr(idx)))
+                    completeEvent = False
+                else:
+                    out[idx] = WaveData(ports[hsdname][key],
+                                        eventnum,
+                                        wave=wave)
+                    completeEvent = out[idx].ok
+            if not completeEvent:
+                break
 
         ## finish testing all detectors to measure ##
         ## before processing ##
 
         ## process hsds
-        if all(completeEvent):
-            for hsdname, out_hsd in out.items():
-                ''' HSD-Abaco section '''
-                for key, data in out_hsd.items():
-                    if not data.setup().process():
-                        completeEvent.append(False)
-        # Note: We yield once here for every event
-        # and keep hsdEvents in a separate (accumulator) function
+        for idx, data in out.items():
+            ''' HSD-Abaco section '''
+            if not data.setup().process():
+                completeEvent = False
+                break
 
-        ## redundant events vec
-        # NOTE: eventnum only increments for complete events
-        if all(completeEvent):
+        if completeEvent:
             yield out
-            eventnum += 1
+        else:
+            yield None
 
-# inp: Iterator[Tuple[ int, Dict[str,Dict[int,Port]], List[int] ]]
 @sink
-def write_out(inp, ports, outname):
-    #if runhsd: # assume this is true because you called me
-    for batch in inp:
-        #for hsdname in hsds.keys():
-        #    print('%s: writing event %i,\tnedges = %s'%(hsdname, eventnum,[ports[hsdname][k].getnedges() for k in chankeys[hsdname]] ))
+def write_out(inp: Iterator[Batch], outname: str) -> None:
+    for i, batch in enumerate(inp):
+        name = outname[:-2] + f"{i}.h5"
+        print('writing batch %i to %s'%(i,name))
+        with h5py.File(name,'w') as f:
+            batch.write_h5(f)
 
-        print('writing to %s'%outname)
-        with h5py.File(outname,'w') as f:
-            write_h5(f, ports, batch)
-
-def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
-  
-    outnames = {}
-
-
+def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     #######################
     #### CONFIGURATION ####
     #######################
@@ -197,7 +214,6 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     _ = [s.setwin(params['vlswin'][0],params['vlswin'][1]) for s in spect]
     #_ = [s.setthresh(params['vlsthresh']) for s in spect]
     ebunch = [Ebeam() for r in runnums]
-    gmd = [Gmd() for r in runnums]
     _ = [e.setoffset(params['l3offset']) for e in ebunch]
     '''
 
@@ -213,29 +229,40 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     ###################################
     #### Setting up the datasource ####
     ###################################
-    is_fex = params['is_fex']
-    
     ds = psana.DataSource(exp=expname,run=runnums)
     for r in runnums:
         run = next(ds.runs())
         outname = '%s/hits.%s.run_%03i.h5'%(scratchdir,expname,run.runnum)
-        ports, hsds, chankeys = setup_hsd_ports(run, params)
-        for hsdname, chan in chankeys.items():
-            print('%s: ports = %s'%(hsdname, list(chan.keys())))
+        hsds, ports = setup_hsds(run, params)
+        gmds,  xray = setup_gmds(run, params)
 
-        s = run_hsds(run, ports, hsds, chankeys)
+        print('ports: ', list(ports.keys()))
+
+        # Start from a stream of (eventnum, event).
+        s = run_events(run)
+        # Run those through both run_hsds and run_gmds,
+        # producing a stream of ( Dict[DetectorID,PortData],
+        #                         Dict[DetectorID,GmdData] )
+        s >>= split(run_hsds(hsds, ports), run_gmds(gmds, xray))
+        # but don't pass items that contain any None-s.
+        # (note: classes test as True)
+        s >>= filter(all)
         if nshots > 0: # truncate to nshots
-            s = s >> take(nshots)
-        s = s >> chop(100) >> map(save_dd_batch)
+            s >>= take(nshots)
+        # Now chop the stream into lists of length 100.
+        s >>= chop(100)
+        # Now save each grouping as a "Batch".
+        #fake_save = lambda lst: {}
+        #s >>= xmap(batch_data, [save_hsd, fake_save])
+        s >>= xmap(batch_data, [save_hsd, save_gmd])
+        # Now group those by increasing size and concatenate them.
+        # This makes increasingly large groupings of the output data.
+        #s >>= chopper([1, 10, 100, 1000]) >> map(concat_batch) # TODO
 
-        # taking every tenth will drop data
-        #>> takei(seq(0, 10))
-
-        # executes when connected to sink:
-        s >> write_out(ports, outname)
+        # The entire stream "runs" when connected to a sink:
+        s >> write_out(outname)
 
     print("Hello, I'm done now.  Have a most excellent day!")
-
 
 if __name__ == '__main__':
     if len(sys.argv)>3:
