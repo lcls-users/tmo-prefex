@@ -174,7 +174,7 @@ def tanhInt(x,bits=8):
     return y.astype(type(x[0]))
 
 def pkey(p):
-    return 'port_%i'%p
+    return '%i'%p
 
 def mypoly(x,order=4):
 	result = np.ones((x.shape[0],order+1),dtype=float)
@@ -218,7 +218,7 @@ def makehist(fname,bins=(np.arange(2**10+1)-2**9)*2**10):
         for p in f.keys():
             data = []
             for k in f[p]['waves'].keys():
-                data += list(f['port_0']['waves'][k][()])
+                data += list(f[p]['waves'][k][()])
             h,b = np.histogram(data,bins)
             np.savetxt('histsig.%s.dat'%p,np.column_stack((b[:-1],h)),fmt='%i')
     return

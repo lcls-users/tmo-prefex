@@ -5,7 +5,7 @@ import numpy as np
 import sys
 
 def pkey(p):
-    return 'port_%i'%p
+    return '%i'%p
 
 def process_tofs(fname,t0s):
     ports = [0,1,4,5,12,13,14,15]
@@ -16,28 +16,34 @@ def process_tofs(fname,t0s):
         data = {}
         nedges = {}
         for p in ports: 
-            data.update( {'port_%i'%p:f['port_%i'%p]['tofs'][()]} ) 
-            #t0s.update({'port_%i'%p:f['port_%i'%p].attrs['t0']})
-            nedges.update( {'port_%i'%p:f['port_%i'%p]['nedges'][()]} )
-            #h = np.histogram(data['port_%i'%p][()]-t0s['port_%i'%p]*fudge_scale,bins)[0]
-            #h = np.histogram(data['port_%i'%p][()],bins)[0]
-            h = np.histogram(data['port_%i'%p][()]-t0s[pkey(p)],bins)[0]
+            key = pkey(p)
+            g = f[key]
+            data.update( {key: g['tofs'][()]} ) 
+            #t0s.update({key%p:g.attrs['t0']})
+            nedges.update( {key: g['nedges'][()]} )
+            d = data[key]
+            #h = np.histogram(d[()]-t0s[key]*fudge_scale,bins)[0]
+            #h = np.histogram(d[()],bins)[0]
+            h = np.histogram(d[()]-t0s[key],bins)[0]
             np.savetxt('tmp_port_%i.dat'%p,np.column_stack((bins[:-1],h)),fmt = '%.2f')
-            #h = np.histogram(np.log2(data['port_%i'%p][()]-t0s['port_%i'%p]*fudge_scale),log2bins)[0]
-            h = np.histogram(np.log2(data['port_%i'%p][()]-t0s[pkey(p)]),log2bins)[0]
+            #h = np.histogram(np.log2(d[()]-t0s[key]*fudge_scale),log2bins)[0]
+            h = np.histogram(np.log2(d[()]-t0s[key]),log2bins)[0]
             np.savetxt('tmp_log2_port_%i.dat'%p,np.column_stack((log2bins[:-1],h)),fmt = '%.6f')
     return data,nedges
 
 def process_waves(fname):
     ports = [0,1,4,5,12,13,14,15]
-    with h5py.File(fname,'r') as f:
+    with h5py.File(fname,'r') as f1:
+        #print(list(f.keys()))
         waves = {}
         for p in ports:
+            #print(key, list(f[key].keys()))
+            key = pkey(p)
             nwaves = 0
-            for k in f['port_%i'%p]['waves'].keys(): 
+            for k in f[key]['waves'].keys(): 
                 if nwaves>100:
                     continue
-                waves.update( {'port_%i%s'%(p,k):f['port_%i'%p]['waves'][k][()]} )
+                waves.update( {(key,k):f[key]['waves'][k][()]} )
                 nwaves += 1
     return waves
 
@@ -59,7 +65,7 @@ def main():
     bins=np.arange(2**8,dtype=float)/2.**8
     h=np.zeros(bins.shape[0]-1,dtype=int)
     for p in [0,1,4,5,12,13,14,15]:
-        h = np.histogram(data['port_%i'%p]%1,bins)[0]
+        h = np.histogram(data[pkey(p)]%1,bins)[0]
         np.savetxt('tmpmod_%i.dat'%p,np.column_stack((bins[:-1],h)),fmt='%.3f')
     
     return
