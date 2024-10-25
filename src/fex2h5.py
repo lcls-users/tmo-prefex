@@ -20,7 +20,7 @@ from stream import (
     chop, map, filter
 )
 
-from Hsd import PortConfig, WaveData, FexData, save_hsd
+from Hsd import HsdConfig, WaveData, FexData, save_hsd
 from Ebeam import *
 #from Vls import *
 from Gmd import GmdConfig, GmdData, save_gmd
@@ -83,7 +83,7 @@ def setup_hsds(run, params):
         # FIXME: do we need .raw here?
         # can the keys() be ordered into a contiguous range?
         for i,k in enumerate(list(hsd.raw._seg_configs().keys())):
-            ports[(hsdname,k)] = PortConfig(
+            ports[(hsdname,k)] = HsdConfig(
                 id = k,
                 # may want to use chankey to store the PCIe address id
                 # or the HSD serial number.
@@ -240,7 +240,7 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         # Start from a stream of (eventnum, event).
         s = run_events(run)
         # Run those through both run_hsds and run_gmds,
-        # producing a stream of ( Dict[DetectorID,PortData],
+        # producing a stream of ( Dict[DetectorID,HsdData],
         #                         Dict[DetectorID,GmdData] )
         s >>= split(run_hsds(hsds, ports), run_gmds(gmds, xray))
         # but don't pass items that contain any None-s.

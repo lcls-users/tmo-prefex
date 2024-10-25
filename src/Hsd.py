@@ -1,8 +1,8 @@
-""" Hsd-s (still referred to in many places as Port-s)
+""" Hsd-s (formerly referred to Port-s)
 store configuration data for individual ports of an HSD.
 
 Per-event data from an Hsd is stored in
-WaveData or FexData -- depending on the PortConfig.fex flag.
+WaveData or FexData -- depending on the HsdConfig.fex flag.
 """
 
 from typing import List, Any, Union, Dict
@@ -19,9 +19,9 @@ from utils import (
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
 
-# Parse: cfg = PortConfig.model_validate_json('{"chankey":1, ...}')
+# Parse: cfg = HsdConfig.model_validate_json('{"chankey":1, ...}')
 # Serialize: cfg.model_dump_json()
-class PortConfig(BaseModel):
+class HsdConfig(BaseModel):
     id: int
     chankey: int # was hsd # was hsd
     is_fex: bool
@@ -113,8 +113,8 @@ class PortConfig(BaseModel):
         return tofs,slopes,np.uint32(len(tofs))
 
 
-class PortData:
-    cfg: PortConfig
+class HsdData:
+    cfg: HsdConfig
     event: int
     ok: bool
     raw: np.ndarray # np.uint16
@@ -123,9 +123,9 @@ class PortData:
     slopes: List[Any]
     nedges: np.uint64
 
-class WaveData(PortData):
+class WaveData(HsdData):
     def __init__( self
-                , cfg: PortConfig
+                , cfg: HsdConfig
                 , event: int
                 , wave = None
                 ) -> None:
@@ -183,13 +183,13 @@ TODO: ensure that process() logic follows this pattern:
                             plt.plot(wv)
                             _=[plt.plot(x[i],y[i]) for i in range(len(y))]
                             plt.show()
-                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
+                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Hsd object and .process() method.
 """
-class FexData(PortData):
+class FexData(HsdData):
     baseline: np.uint32
 
     def __init__( self
-                , cfg: PortConfig
+                , cfg: HsdConfig
                 , event: int
                 , peak = None
                 ) -> None:
@@ -317,7 +317,7 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
             k += u+v
 
     return dict(
-        PortConfig = waves[0].cfg,
+        HsdConfig = waves[0].cfg,
         events = events,
         addresses = np.cumsum(nedges)-nedges[0],
         tofs = concat(x.tofs for x in waves),

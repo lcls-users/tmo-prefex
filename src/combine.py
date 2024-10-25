@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from collections.abc import Callable
 
-from Hsd import PortConfig, WaveData, FexData
+from Hsd import HsdConfig, WaveData, FexData
 from Gmd import GmdConfig, GmdData
 
 import numpy as np
@@ -18,7 +18,7 @@ class Batch(dict):
     """
     dtypes = {'events': np.uint32,
               # from HSD detectors
-              'PortConfig': 'json',
+              'HsdConfig': 'json',
               'addresses': np.uint64,
               'nedges': np.uint64,
               'tofs': np.uint64,
@@ -64,8 +64,8 @@ class Batch(dict):
             #
             # TODO: determine type of detector (from k?)
             #       and gather config. options here.
-            ret = {"PortConfig": PortConfig.model_validate_json(
-                                        v.attrs["PortConfig"])
+            ret = {"HsdConfig": HsdConfig.model_validate_json(
+                                        v.attrs["HsdConfig"])
                   }
             data[k] = load_data(ret, v)
 
@@ -86,7 +86,7 @@ class Batch(dict):
             for k, v in data.items():
                 dtype = self.dtypes[k]
                 if dtype == 'json':
-                    # Store PortConfig, etc. in json strings.
+                    # Store HsdConfig, etc. in json strings.
                     g.attrs.create(k, data=v.model_dump_json())
                 else:
 
