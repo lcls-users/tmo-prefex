@@ -253,14 +253,15 @@ class FexData(PortData):
                     continue
                 ## no longer needing to correct for the adc offsets. ##
                 ## logic = fftLogic_fex(s,self.baseline,inflate=cfg.inflate,nrollon=cfg.roll_on,nrolloff=cfg.roll_off) #produce the "logic vector"
-                es, des, _ = cfdLogic(s) # scan the logic vector for hits
+                # scan the logic vector for hits
+                es,des,_ = cfdLogic(s,thresh=int(-512),offset=2)
                 start = xlist[i]
                 e.extend([start+v for v in es])
                 de.extend( list(des) )
 
         if len(slist) > 2:
             self.raw = s.astype(np.uint16, copy=True)
-            self.logic = logic
+            self.logic = np.zeros(0, dtype=np.uint16)
         else:
             self.raw = np.zeros(0, dtype=np.uint16)
             self.logic = np.zeros(0, dtype=np.uint16)
