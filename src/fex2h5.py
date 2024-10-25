@@ -163,7 +163,7 @@ def run_hsds(events, hsds, ports,
                 else:
                     out[idx] = FexData(port,
                                        eventnum,
-                                       peak=peak)
+                                       peak=peak[key][0])
                     completeEvent = out[idx].ok
             else:
                 wave = hsd.raw.waveforms(evt)
@@ -171,9 +171,9 @@ def run_hsds(events, hsds, ports,
                     print('%i: hsds[%s].raw.waveforms(evt) is None'%(eventnum,repr(idx)))
                     completeEvent = False
                 else:
-                    out[idx] = WaveData(ports[hsdname][key],
+                    out[idx] = WaveData(port,
                                         eventnum,
-                                        wave=wave)
+                                        wave=wave[key][0])
                     completeEvent = out[idx].ok
             if not completeEvent:
                 break

@@ -132,10 +132,8 @@ class WaveData(PortData):
         assert not cfg.is_fex
         #self.processAlgo = 'wave'
 
-        self.wave = None
-        if wave is not None:
-            self.wave = wave[self.cfg.id][0]
-        self.ok = self.wave is not None
+        self.wave = wave
+        self.ok = wave is not None
 
     def setup(self) -> "WaveData": # was set_baseline
         # FIXME: just store as self.raw???
@@ -181,10 +179,8 @@ class FexData(PortData):
         assert cfg.is_fex
         self.processAlgo = 'fex2hits'
 
-        self.peak = None
-        if peak is not None:
-            self.peak = peak[self.cfg.id][0]
-        self.ok = self.peak is not None
+        self.peak = peak
+        self.ok = peak is not None
 
     def set_baseline(self, val) -> "FexData":
         self.baseline = np.uint32(val)
