@@ -1,6 +1,7 @@
 # Latest update...
-Thank you Chris O'Grady!  
+Todo, update the .h5 files on /lscratch and then move to /sdf/data/lcls/...  
 
+Thank you Chris O'Grady!  
 ```python
 expname = 'tmox1016823'
 runstr = 'r%04i'%(runnum)
