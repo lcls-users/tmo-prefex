@@ -33,6 +33,12 @@ def mydst(smat,x):
 
 # then add the frequency scaled version
 # then add the zeros append for oversampling
+def quick_mean(lints,baseshift=2):
+    if len(lints)<(1<<baseshift):
+        print('too short for quick mean')
+        return None
+    return np.uint32( np.sum(lints[:1<<baseshift])>>baseshift )
+
 
 
 def randomround(x:float,rng):
@@ -171,3 +177,12 @@ def xtcav_crop(inimg,win=(256,256)):
     #return dct(dct(W,axis=2,type=3),axis=1,type=3),x0,y0
     #print(x0,y0)
     #return inimg[:win[0],:win[1]],x0,y0
+
+def concat(arg):
+    if isinstance(arg, list):
+        vals = arg
+    else:
+        vals = list(arg)
+    if len(vals) == 0:
+        return np.array([], dtype=np.int32)
+    return np.hstack(vals)
