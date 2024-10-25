@@ -23,20 +23,12 @@ from stream import (
 from new_port import PortConfig, WaveData, FexData, save_hsd
 from combine import batch_data, Batch
 from Ebeam import *
-from Vls import *
+#from Vls import *
 from Gmd import GmdConfig, GmdData, save_gmd
+from Spect import *
 from Config import Config
 from utils import *
 from stream_utils import split, xmap
-
-runhsd=True
-runfzp=False
-runtiming=False
-
-runvls=False
-runebeam=False
-runxtcav=False
-rungmd=True
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)
@@ -216,14 +208,20 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     ebunch = [Ebeam() for r in runnums]
     _ = [e.setoffset(params['l3offset']) for e in ebunch]
     '''
+    runhsd=True
+    rungmd=False
+    runlcams=False
+    runtiming=False
+
+    runvls=False
+    runebeam=False
+    runxtcav=False
 
     '''
     timings = []
-    fzps = []
     vlss = []
     ebeams = []
     xtcavs = []
-    xgmds = []
     '''
 
     ###################################
@@ -261,6 +259,7 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
 
         # The entire stream "runs" when connected to a sink:
         s >> write_out(outname)
+
 
     print("Hello, I'm done now.  Have a most excellent day!")
 

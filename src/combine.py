@@ -27,7 +27,7 @@ class Batch(dict):
               'rl_addresses': np.uint64,
               'raw_lens': np.uint16,
               'logic_lens': np.uint16,
-              'rl_data': np.int32,
+              'rl_data': np.int32, # rwl were u16,s16,s32
               # from GMD detectors
               'GmdConfig': 'json',
               'energies': np.int16,
