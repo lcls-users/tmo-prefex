@@ -50,7 +50,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
     _ = [e.setoffset(params['l3offset']) for e in ebunch]
     '''
     runhsd=True
-    rungmd=True
+    rungmd=False
     runlcams=False
     runtiming=False
 
@@ -116,11 +116,9 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                 chankeys[rkey].update({hsdname:{}})
                 for i,k in enumerate(list(hsds[rkey][hsdname].raw._seg_configs().keys())):
                     chankeys[rkey][hsdname].update({k:k}) # this we may want to replace with the PCIe address id or the HSD serial number.
-                    #print(k,chankeys[rkey][hsdname][k])
-                    #port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],t0=t0s[i],logicthresh=logicthresh[i],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=nr_expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_name(hsdname)
-                    port[rkey][hsdname][k].set_logicthresh(18000)
+                    port[rkey][hsdname][k].set_logicthresh(-1*(1<<10))
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)
@@ -223,19 +221,24 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
                         nwins:int = 1
                         xlist:List[int] = []
                         slist:List[ List[int] ] = []
-                        baseline = np.uint32(0)
                         if is_fex:
                             nwins = len(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0])
-                            if nwins >2 : # always reports the start of and the end of the fex active window.
-                                baseline = np.sum(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][0].astype(np.uint32))
-                                baseline //= len(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][0])
-                                for i in range(1,nwins-2):
-                                    xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
-                                    slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
-                        else:
-                            slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
+                            if nwins < 3 : # always reports the start of and the end of the fex active window, and ignore if not a peak in there also
+                                continue
+                            for i in range(nwins):
+                                xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
+                                slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
+                        elif eventnum > 100 and hsds[rkey][hsdname].raw.waveforms(evt) is not None:
+                            slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] 
                             xlist += [0]
-                        port[rkey][hsdname][key].set_baseline(baseline).process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
+                            wv = hsds[hkey][hsdname].raw.waveforms(evt)[ key ][0]
+                            wvx = np.arange(wv.shape[0])
+                            y = [hsd.raw.peaks(evt)[1][0][1][i] for i in range(len(hsd.raw.peaks(evt)[1][0][1]))]
+                            x = [np.arange(hsd.raw.peaks(evt)[1][0][0][i],hsd.raw.peaks(evt)[1][0][0][i]+len(hsd.raw.peaks(evt)[1][0][1][i])) for i in range(len(y))]
+                            plt.plot(wv)
+                            _=[plt.plot(x[i],y[i]) for i in range(len(y))]
+                            plt.show()
+                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Port object and .process() method.
 
             ## redundant events vec
             if all(completeEvent):

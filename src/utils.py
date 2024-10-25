@@ -6,6 +6,7 @@ import math
 import os
 import re
 from scipy.fftpack import dct,dst
+import matplotlib.pyplot as plt
 
 def show(x):
     offset = 5+np.abs(np.min(x))
@@ -38,6 +39,106 @@ def quick_mean(lints,baseshift=2):
         print('too short for quick mean')
         return None
     return np.uint32( np.sum(lints[:1<<baseshift])>>baseshift )
+
+
+indx=0
+## Various logic wave scanners
+def cfdLogic(s,thresh,offset=2):
+    res = (np.array(s).astype(np.int16) - np.roll(s,-offset).astype(np.int16))
+    '''
+    global indx 
+    indx += 1
+    if indx%1<<14==0:
+        indx = 0
+        plt.plot(res)
+        plt.show()
+        '''
+    tofs = []
+    slopes = []
+    sz = res.shape[0]
+    i:int = int(1)
+    while i < sz-1:
+        while res[i] > thresh:
+            i += 1
+            if i==sz-1: return tofs,slopes,len(tofs)
+        while i<sz-1 and res[i]<0:
+            i += 1
+        stop = i
+        ''' dx / (Dy) = dx2/dy2 ; dy2*dx/Dy - dx2 ; x2-dx2 = stop - dy2*1/Dy'''
+        if stop > 0 and res[stop]>(-1*res[stop-1]):
+            stop -= 1
+        i += 1
+        tofs += [np.uint32(stop)] 
+        slopes += [res[stop]-res[stop-1]] 
+    return tofs,slopes,np.uint16(len(tofs))
+
+def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
+    sz = s.shape[0]
+    result = np.zeros(sz*inflate,dtype=np.int32)
+    rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*2*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
+    smirror = np.append(s,np.flip(s,axis=0)).astype(float)
+    S = fft(smirror,axis=0)
+    S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
+    if inflate>1:
+        S = np.concatenate((S[:sz],np.zeros(2*sz*(inflate-1),dtype=complex),S[sz:]))
+    Sy = np.copy(S)*sz
+    S[:sz] *= 1j*np.arange(sz,dtype=float)/(sz)
+    S[-sz:] *= np.flip(-1j*np.arange(sz,dtype=float)/(sz),axis=0)
+    y = ifft(Sy,axis=0).real[:(inflate*sz)]
+    dy = ifft(S,axis=0).real[:(inflate*sz)]
+    return -y*dy
+
+def fftLogic_fex(s,baseline,inflate=1,nrollon=8,nrolloff=32):
+    sz = s.shape[0]
+    if (sz)<nrolloff:
+        print('sz is wrong %i'%(len(s)))
+        print('nrolloff = %i'%(nrolloff))
+    result = np.zeros(sz*inflate,dtype=np.int32)
+    rollon_vec = 0.5*(1.-np.cos(np.arange(nrollon,dtype=float)*np.pi/float(nrollon))) 
+    rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
+    #print('rolloff sz = %i'%(len(rolloff_vec)))
+    smirror = np.append(s-baseline,np.flip(s-baseline,axis=0)).astype(float)
+    smirror[:nrollon] *= rollon_vec
+    smirror[-nrollon:] *= np.flip(rollon_vec,axis=0)
+    smirror[sz-nrolloff:sz+nrolloff] *= rolloff_vec
+    
+    S = fft(smirror,axis=0)
+    S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
+    if inflate>1:
+        S = np.concatenate((S[:sz],np.zeros(2*sz*(inflate-1),dtype=complex),S[sz:]))
+    Sy = np.copy(S)
+    S[:sz] *= 1j*np.arange(sz,dtype=float)/(sz)
+    S[-sz:] *= np.flip(-1j*np.arange(sz,dtype=float)/(sz),axis=0)
+    y = ifft(Sy,axis=0).real[:(inflate*sz)]
+    dy = ifft(S,axis=0).real[:(inflate*sz)]
+    result = y
+    #print(np.min(res),np.max(res))
+    return result
+
+
+def fftLogic_f16(s,inflate=1,nrolloff=128):
+    sz = s.shape[0]
+    result = np.zeros(sz*inflate,dtype=np.int16)
+    rolloff_vec = (1<<3)*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*2*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
+    smirror = np.append(s,np.flip(s,axis=0)).astype(np.int16)
+    S = fft(smirror,axis=0)
+    SR = np.copy(S.real).astype(np.int16)
+    SI = np.copy(S.imag).astype(np.int16)
+    SR[sz-nrolloff:sz+nrolloff] *= rolloff_vec.astype(np.int16)
+    SI[sz-nrolloff:sz+nrolloff] *= rolloff_vec.astype(np.int16)
+    SR[:sz-nrolloff] <<= 4
+    SR[sz+nrolloff:] <<= 4
+    SI[:sz-nrolloff] <<= 4
+    SI[sz+nrolloff:] <<= 4
+    S = SR + 1j*SI
+    if inflate>1:
+        S = np.concatenate((S[:sz],np.zeros(2*sz*(inflate-1),dtype=complex),S[sz:]))
+    Sy = np.copy(S)*sz
+    S[:sz] *= 1j*np.arange(sz,dtype=np.float16)/(sz)
+    S[-sz:] *= np.flip(-1j*np.arange(sz,dtype=np.float16)/(sz),axis=0)
+    y = ifft(Sy,axis=0).real[:(inflate*sz)].astype(np.int16)
+    dy = ifft(S,axis=0).real[:(inflate*sz)].astype(np.int16)
+    return -((y>>4)*(dy>>4)).astype(np.int16)
 
 
 
