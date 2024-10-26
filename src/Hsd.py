@@ -318,7 +318,7 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
             k += u+v
 
     return dict(
-        HsdConfig = waves[0].cfg,
+        config = waves[0].cfg,
         events = events,
         addresses = np.cumsum(nedges)-nedges[0],
         tofs = concat(x.tofs for x in waves),

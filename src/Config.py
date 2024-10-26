@@ -11,11 +11,12 @@ from pydantic import BaseModel, Discriminator, Tag
 from Hsd import HsdConfig
 from Gmd import GmdConfig
 
-def get_detector_type(v: Any) -> str:
+def get_name(v: Any) -> str:
     if isinstance(v, dict):
-        name = v.get('name')
-    else:
-        name = getattr(v, 'name')
+        return v.get('name')
+    return getattr(v, 'name')
+
+def get_detector_type(name: str) -> str:
     if name.endswith('hsd'):
         return 'hsd'
     elif name.endswith('gmd'):
@@ -23,17 +24,22 @@ def get_detector_type(v: Any) -> str:
     #raise ValueError(f"Cannot determine type for detector: {name}")
     return None
 
-class Config(BaseModel):
-    """ A global config can be made from a list of
-    per-detector config. options.
-    """
-    detectors: List[ Annotated[
+DetectorType = Annotated[
         Union[
             Annotated[HsdConfig, Tag('hsd')],
             Annotated[GmdConfig, Tag('gmd')],
         ],
-        Discriminator(get_detector_type),
-    ] ] = []
+        Discriminator(lambda v: get_detector_type(get_name(v))),
+    ]
+
+class DetectorConfig(BaseModel):
+    detector: DetectorType
+
+class Config(BaseModel):
+    """ A global config can be made from a list of
+    per-detector config. options.
+    """
+    detectors: List[DetectorType] = []
     # t0s
     # logicthresh
     # offsets
@@ -63,21 +69,6 @@ class Config(BaseModel):
         with open(fname, "w", encoding="utf-8") as f:
             yaml.dump(cfg.model_dump(), f, indent=2)
 
-example_config = """
-- name: mrco_hsd
-  id: 0
-  chankey: 0
-  expand: 4
-  inflate: 2
-  is_fex: true
-  logicthresh: -1*(1<<13) # set by 1st knee (log-log) in val histogram
-  # offsets: [0,0,0,0]
-
-- name: gmd
-  vlsthresh: 1000
-  vlswin: (1024,2048)
-  l3offset: 5100
-"""
 ''' ???
 params.update({'hsdchannels':{'mrco_hsd_0':'hsd_1B_A',
             'mrco_hsd_22':'hsd_1B_B',
@@ -97,20 +88,3 @@ params.update({'hsdchannels':{'mrco_hsd_0':'hsd_1B_A',
             'mrco_hsd_337':'hsd_B1_B'} })
 '''
 
-example_config = """
-detectors:
-  - name: hsd1
-    id: 0
-    chankey: 0
-    is_fex: true
-  - name: xgmd
-    scale: 1000
-"""
-
-if __name__=="__main__":
-    cfg1 = yaml.safe_load(example_config)
-    cfg = Config.model_validate(cfg1)
-    print(yaml.dump(cfg.model_dump(), indent=2))
-
-    d = cfg.to_dict()
-    cfg2 = cfg.from_dict(d)
