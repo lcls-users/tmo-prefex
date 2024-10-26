@@ -137,11 +137,12 @@ class WaveData(HsdData):
         self.wave = wave
         self.ok = wave is not None
 
-    def setup(self) -> "WaveData": # was set_baseline
+    def setup(self) -> "WaveData":
         # FIXME: just store as self.raw???
         self.slist = [ np.array(data.wave, dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
         self.xlist = [0]
-        #self.baseline = np.uint32(0)
+        #self.baseline = np.uint32(1<<8)
+
         return self
 
     def process(self) -> bool:

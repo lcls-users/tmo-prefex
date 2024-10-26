@@ -1,32 +1,85 @@
 #!/sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
 
+from typing import Annotated, Any, Union, List
+from pathlib import Path
+
 import h5py
 import numpy as np
+import yaml
+from pydantic import BaseModel, Discriminator, Tag
 
-class Config:
-    def __init__(self,is_fex=False):
-        self.hsdchannels = {}
-        self.params = {'devices':[]}
-        #self.chans = {0:3,1:9,2:11,4:10,5:12,12:5,13:6,14:8,15:2,16:13}
-        #self.params['chans'] = {0:0,1:1}
-        self.params.update({'vlsthresh':1000})
-        self.params.update({'vlswin':(1024,2048)})
-        self.params.update({'l3offset':5100})
-        self.params.update({'expand':4,'inflate':2})    # expand controls the fractional resolution for scanedges by scaling index values and then zero crossing round to intermediate integers.
-                                                        # inflate pads the DCT(FFT) with zeros, artificially over sampling the waveform
+from Hsd import HsdConfig
+from Gmd import GmdConfig
 
-        self.params.update({'t0s':{0:4577,1:4186,2:4323,4:4050,5:4128,12:4107,13:4111,14:4180,15:4457,16:4085}}) # these are not accounting for the expand nor inflate, digitizer units, 6GSps, so 6k = 1usec
-        self.params.update({'logicthresh':{0:-1*(1<<15), 1:-1*(1<<15), 2:-1*(1<<15), 4:-1*(1<<15), 5:-1*(1<<15), 12:-1*(1<<15), 13:-1*(1<<15), 14:-1*(1<<15), 15:-1*(1<<15), 16:-1*(1<<15)}}) # set by 1st knee (log-log) in val histogram
-        self.params.update({'offsets':{}})
-        for k in self.params['logicthresh'].keys():
-            self.params['logicthresh'][k] >>= 2
-            self.params['offsets'].update({k:[0]*4})
+def get_detector_type(v: Any) -> str:
+    if isinstance(v, dict):
+        name = v.get('name')
+    else:
+        name = getattr(v, 'name')
+    if name.endswith('hsd'):
+        return 'hsd'
+    elif name.endswith('gmd'):
+        return 'gmd'
+    #raise ValueError(f"Cannot determine type for detector: {name}")
+    return None
 
-        self.is_fex = is_fex
-        self.params.update({'is_fex':self.is_fex})
+class Config(BaseModel):
+    """ A global config can be made from a list of
+    per-detector config. options.
+    """
+    detectors: List[ Annotated[
+        Union[
+            Annotated[HsdConfig, Tag('hsd')],
+            Annotated[GmdConfig, Tag('gmd')],
+        ],
+        Discriminator(get_detector_type),
+    ] ] = []
+    # t0s
+    # logicthresh
+    # offsets
 
-        '''
-        self.params.update({'hsdchannels':{'mrco_hsd_0':'hsd_1B_A',
+    def to_dict(cfg):
+        return {(d.name,getattr(d,'id',0)): d for d in cfg.detectors}
+
+    @classmethod
+    def from_dict(cls, ans):
+        return cls.model_validate({'detectors':list(ans.values())})
+
+    #expand: int # expand controls the fractional resolution for scanedges by scaling index values and then zero crossing round to intermediate integers.
+    #inflate: int # inflate pads the DCT(FFT) with zeros, artificially over sampling the waveform
+    #vlsthresh
+    #vlswin
+    #l3offset
+
+    @classmethod
+    def load(cls, fname: str):
+        with open(fname, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        return cls.model_validate(cfg)
+
+    def save(cfg, fname: str, overwrite=False) -> None:
+        if not overwrite and Path(fname).exists():
+            raise FileExistsError(f"won't overwrite {fname}")
+        with open(fname, "w", encoding="utf-8") as f:
+            yaml.dump(cfg.model_dump(), f, indent=2)
+
+example_config = """
+- name: mrco_hsd
+  id: 0
+  chankey: 0
+  expand: 4
+  inflate: 2
+  is_fex: true
+  logicthresh: -1*(1<<13) # set by 1st knee (log-log) in val histogram
+  # offsets: [0,0,0,0]
+
+- name: gmd
+  vlsthresh: 1000
+  vlswin: (1024,2048)
+  l3offset: 5100
+"""
+''' ???
+params.update({'hsdchannels':{'mrco_hsd_0':'hsd_1B_A',
             'mrco_hsd_22':'hsd_1B_B',
             'mrco_hsd_45':'hsd_1A_A',
             'mrco_hsd_67':'hsd_1A_B',
@@ -42,45 +95,22 @@ class Config:
             'mrco_hsd_292':'hsd_B2_B',
             'mrco_hsd_315':'hsd_B1_A',
             'mrco_hsd_337':'hsd_B1_B'} })
-        '''
-        return None
+'''
 
-    def fillconfigs_fromH5(self,cfgname:str):
-        with h5py.File(cfgname,'r') as f:
-            self.params['inflate'] = f.attrs['inflate']
-            self.params['expand'] = f.attrs['expand']
-            self.params['vlsthresh'] = f.attrs['vlsthresh']
-            self.params['vlswin'] = f.attrs['vlswin']
-            self.params['l3offset'] = f.attrs['l3offset']
-            for p in f.keys():
-                m = re.search('^\w+_(\d+)$',p)
-                if m:
-                    k = int(m.group(1))
-                    #self.params['chans'][k] = f[p].attrs['hsd']
-                    self.params['t0s'][k] = f[p].attrs['t0']
-                    self.params['logicthresh'][k] = f[p].attrs['logicthresh']
-                    self.params['offsets'][k] = f[p].attrs['offsets']
-        return self
+example_config = """
+detectors:
+  - name: hsd1
+    id: 0
+    chankey: 0
+    is_fex: true
+  - name: xgmd
+    scale: 1000
+"""
 
-    def getparams(self):
-        return self.params
+if __name__=="__main__":
+    cfg1 = yaml.safe_load(example_config)
+    cfg = Config.model_validate(cfg1)
+    print(yaml.dump(cfg.model_dump(), indent=2))
 
-
-    def writeconfigs(self,fname:str):
-        with h5py.File(fname,'w') as f:
-            f.attrs.create('expand',self.params['expand']) # expand controls the fractional resolution for scanedges by scaling index values and then zero crossing round to intermediate integers.
-            f.attrs.create('inflate',self.params['inflate']) # inflate pads the DCT(FFT) with zeros, artificially over sampling the waveform
-            f.attrs.create('vlsthresh',data=self.params['vlsthresh'])
-            f.attrs.create('vlswin',data=self.params['vlswin'])
-            f.attrs.create('l3offset',data=self.params['l3offset'])
-            '''
-            for k in self.params['chans'].keys():
-                key = 'port_%i'%int(k)
-                c = f.create_group(key)
-                c.attrs.create('hsd',data=self.params['chans'][k])
-                c.attrs.create('t0',data=self.params['t0s'][k])
-                c.attrs.create('logicthresh',data=self.params['logicthresh'][k])
-                c.attrs.create('offsets',data=self.params['offsets'][k])
-                '''
-        return self
-
+    d = cfg.to_dict()
+    cfg2 = cfg.from_dict(d)

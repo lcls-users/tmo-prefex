@@ -1,3 +1,4 @@
 pynng
 pydantic>=2.0
+pyyaml
 git+https://github.com/frobnitzem/stream.py@v1.0.0
