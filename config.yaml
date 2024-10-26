@@ -1,0 +1,123 @@
+vlsthresh: 1000
+vlswin: [1024,2048]
+l3offset: 5100
+
+# apparently the ordering is 0,1,2,4,5,12,13,14,15,16
+
+# Note: t0s are not accounting for the expand nor inflate,
+# digitizer units, 6GSps, so 6k = 1usec
+detectors:
+- name: xgmd
+  scale: 10000
+  unit: 0.1uJ
+- name: gmd
+  scale: 1000
+  unit: uJ
+- &default
+  chankey: 0
+  id: 0
+  expand: 4
+  inflate: 2
+  is_fex: true
+  # Set by 1st knee (log-log) in val histogram
+  logic_thresh: -32768 # -1*(1<<15)
+  # second knee ~ {0:-2000000, 1:-1500000, 2:-800000, 4:-800000, 5:-2500000, 12:-3000000, 13:-2300000, 14:-2100000, 15:-2000000, 16:-3300000}
+  # logicthresh = {0:-(2**20), 1:-(2**20), 2:-(2**20), 4:-(2**20), 5:-(2**20), 12:-(2**20+2**18+2**17), 13:-(2**20+2**19), 14:-(2**20+2**18), 15:-(2**20), 16:-(2**21)}
+  # logicthresh = {0:-1*((1<<18)), 1:-1*((1<<18)), 2:-1*((1<<18)+(1<<18)), 4:-1*((1<<18)), 5:-1*((1<<18)), 12:-1*((1<<18)), 13:-1*((1<<18)), 14:-1*((1<<18)), 15:-1*((1<<18)), 16:-1*((1<<18)+(1<<17))}
+  # logicthresh = {0:-1*((1<<23)+(1<<17)), 1:-1*((1<<23)+(1<<17)), 2:-1*((1<<23)+(1<<17)), 4:-1*((1<<23)+(1<<17)), 5:-1*((1<<23)+(1<<17)), 12:-1*((1<<23)+(1<<18)), 13:-1*((1<<23)+(1<<18)), 14:-1*((1<<23)+(1<<18)), 15:-1*((1<<23)+(1<<17)), 16:-1*((1<<23))}
+  nadcs: 4
+  name: mrco_hsd
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+  baselim: 64
+- chankey: 1
+  id: 22
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 2
+  id: 45
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 3
+  id: 67
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 4
+  id: 90
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 5
+  id: 112
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 6
+  id: 135
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 7
+  id: 157
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 8
+  id: 180
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 9
+  id: 202
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 10
+  id: 225
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 11
+  id: 247
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 12
+  id: 270
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 13
+  id: 292
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 14
+  id: 315
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200
+- chankey: 15
+  id: 337
+  <<: *default
+  roll_off: 6
+  roll_on: 6
+  t0: 4200

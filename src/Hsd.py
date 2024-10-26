@@ -26,8 +26,8 @@ class HsdConfig(BaseModel):
     chankey: int # was hsd # was hsd
     is_fex: bool
     name: str
-    inflate: int = 1
-    expand: int = 1
+    inflate: int = 1 # inflate pads the DCT(FFT) with zeros, artificially over sampling the waveform
+    expand: int = 1  # expand controls the fractional resolution for scanedges by scaling index values and then zero crossing round to intermediate integers.
     logic_thresh: int = -1*(1<<20) # was logicthresh
     roll_on: int = 256
     roll_off: int = 256
