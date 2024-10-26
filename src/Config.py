@@ -10,6 +10,7 @@ from pydantic import BaseModel, Discriminator, Tag
 
 from Hsd import HsdConfig
 from Gmd import GmdConfig
+from Spect import SpectConfig
 
 def get_name(v: Any) -> str:
     if isinstance(v, dict):
@@ -21,6 +22,8 @@ def get_detector_type(name: str) -> str:
         return 'hsd'
     elif name.endswith('gmd'):
         return 'gmd'
+    elif name.endswith('piranha'):
+        return 'spect'
     #raise ValueError(f"Cannot determine type for detector: {name}")
     return None
 
@@ -28,6 +31,7 @@ DetectorType = Annotated[
         Union[
             Annotated[HsdConfig, Tag('hsd')],
             Annotated[GmdConfig, Tag('gmd')],
+            Annotated[SpectConfig, Tag('spect')],
         ],
         Discriminator(lambda v: get_detector_type(get_name(v))),
     ]

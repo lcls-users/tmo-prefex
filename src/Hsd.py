@@ -5,11 +5,13 @@ Per-event data from an Hsd is stored in
 WaveData or FexData -- depending on the HsdConfig.fex flag.
 """
 
-from typing import List, Any, Union, Dict
+from typing import List, Any, Union, Dict, Optional
 import time
+from collections.abc import Iterator
 
 import numpy as np
 from pydantic import BaseModel
+from stream import stream
 
 from utils import (
     mypoly, tanhInt, tanhFloat,
@@ -112,6 +114,48 @@ class HsdConfig(BaseModel):
             slopes += [float((theta[1]+x0*theta[2])/2**18)] ## scaling to reign in the obscene derivatives... probably shoul;d be scaling d here instead
         return tofs,slopes,np.uint32(len(tofs))
 
+# FIXME: do we need .raw here?
+# can the keys() be ordered into a contiguous range?
+def get_portnums(hsd) -> Dict[int,int]:
+    ports = list(hsd.raw._seg_configs().keys())
+    ports.sort()
+    return dict(enumerate(ports))
+
+
+def setup_hsds(run, params, default) -> Dict[str,Any]:
+    """ Gather the dict of hsdname: hsd
+    for all detectors ending in 'hsd'.
+
+    Also adds defaults for this detector to params
+    if not present.
+    """
+    hsdnames = [s for s in run.detnames if s.endswith('hsd')]
+
+    hsds = {}
+    for hsdname in hsdnames:
+        hsd = run.Detector(hsdname)
+        if hsd is None:
+            print(f'run.Detector({hsdname}) is None!')
+            continue
+
+        hsds[hsdname] = hsd
+        for i,k in get_portnums(hsd).items():
+            idx = (hsdname,k)
+            if idx not in params:
+                cfg = default.copy()
+                cfg.name = hsdname
+                cfg.id = k
+                cfg.chankey = i
+                if default.is_fex:
+                    # guessing that 3/4 of the pre and post extension for
+                    # threshold crossing in fex is a good range for the
+                    # roll on and off of the signal
+                    cfg.roll_on = ( 3*int(hsd.raw._seg_configs()[k]
+                                        .config.user.fex.xpre) )>>2
+                    cfg.roll_off = (3*int(hsd.raw._seg_configs()[k]
+                                        .config.user.fex.xpost) )>>2
+                params[idx] = cfg
+    return hsds
 
 class HsdData:
     cfg: HsdConfig
@@ -121,7 +165,7 @@ class HsdData:
     logic: List[Any]
     tofs: List[Any]
     slopes: List[Any]
-    nedges: np.uint64
+    nedges: np.uint32
 
 class WaveData(HsdData):
     def __init__( self
@@ -134,27 +178,17 @@ class WaveData(HsdData):
         assert not cfg.is_fex
         #self.processAlgo = 'wave'
 
-        self.wave = wave
         self.ok = wave is not None
+        if wave is None:
+            return
 
-    def setup(self) -> "WaveData":
-        # FIXME: just store as self.raw???
-        self.slist = [ np.array(data.wave, dtype=np.int16) ] # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
-        self.xlist = [0]
+        self.raw = np.array(wave, dtype=np.int16) # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
         #self.baseline = np.uint32(1<<8)
-
-        return self
 
     def process(self) -> bool:
         cfg = self.cfg
-        e:List[np.int32] = []
-        de = []
-        ne = 0
-        r = []
-        s = self.slist[0] # data.wave as np.int16
-        x = self.xlist[0] # == 0
-        if s is None:
-            return False
+        s = self.raw # data.wave as np.int16
+        x = 0
         
         for adc in range(cfg.nadcs): # correcting systematic baseline differences for the four ADCs.
             b = np.mean(s[adc:cfg.baselim+adc:cfg.nadcs])
@@ -162,29 +196,30 @@ class WaveData(HsdData):
         #logic = fftLogic(s,inflate=cfg.inflate,nrolloff=cfg.nrolloff) #produce the "logic vector"
         logic = fftLogic_f16(s,inflate=cfg.inflate,nrolloff=cfg.nrolloff) #produce the "logic vector"
         e,de,ne = cfg.scanedges_simple(logic) # scan the logic vector for hits
-        self.raw = s.astype(np.uint16, copy=True)
+        #self.raw = s.astype(np.uint16, copy=True)
         self.logic = logic
         self.tofs = e
         self.slopes = de
-        self.nedges = np.uint64(ne)
+        self.nedges = np.uint32(ne)
         return True
 
 """
 TODO: ensure that process() logic follows this pattern:
 
-                                xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
-                                slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
-                        elif eventnum > 100 and hsds[rkey][hsdname].raw.waveforms(evt) is not None:
-                            slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] 
-                            xlist += [0]
-                            wv = hsds[hkey][hsdname].raw.waveforms(evt)[ key ][0]
-                            wvx = np.arange(wv.shape[0])
-                            y = [hsd.raw.peaks(evt)[1][0][1][i] for i in range(len(hsd.raw.peaks(evt)[1][0][1]))]
-                            x = [np.arange(hsd.raw.peaks(evt)[1][0][0][i],hsd.raw.peaks(evt)[1][0][0][i]+len(hsd.raw.peaks(evt)[1][0][1][i])) for i in range(len(y))]
-                            plt.plot(wv)
-                            _=[plt.plot(x[i],y[i]) for i in range(len(y))]
-                            plt.show()
-                        port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Hsd object and .process() method.
+           xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
+           slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]
+       elif eventnum > 100 and hsds[rkey][hsdname].raw.waveforms(evt) is not None:
+           slist += [ np.array(hsds[rkey][hsdname].raw.waveforms(evt)[ key ][0] , dtype=np.int16) ] 
+           xlist += [0]
+
+           wv = hsds[hkey][hsdname].raw.waveforms(evt)[ key ][0]
+           wvx = np.arange(wv.shape[0])
+           y = [hsd.raw.peaks(evt)[1][0][1][i] for i in range(len(hsd.raw.peaks(evt)[1][0][1]))]
+           x = [np.arange(hsd.raw.peaks(evt)[1][0][0][i],hsd.raw.peaks(evt)[1][0][0][i]+len(hsd.raw.peaks(evt)[1][0][1][i])) for i in range(len(y))]
+           plt.plot(wv)
+           _=[plt.plot(x[i],y[i]) for i in range(len(y))]
+           plt.show()
+       port[rkey][hsdname][key].process(slist,xlist) # this making a list out of the waveforms is to accommodate both the fex and the non-fex with the same Hsd object and .process() method.
 """
 class FexData(HsdData):
     baseline: np.uint32
@@ -199,32 +234,35 @@ class FexData(HsdData):
         assert cfg.is_fex
         self.processAlgo = 'fex2hits'
 
-        self.peak = peak
-        self.ok = peak is not None
+        if peak is not None:
+            self.ok = self.setup(peak)
+        else:
+            self.ok = False
 
-    def set_baseline(self, val) -> "FexData":
-        self.baseline = np.uint32(val)
-        return self
-
-    def setup(self) -> "FexData":
+    def setup(self, peak) -> "FexData":
         "compute and set self.{baseline, xlist, slist}"
         xlist: List[int] = []
         slist: List[np.ndarray] = []
 
-        nwins = len(self.peak[0])
+        nwins = len(peak[0])
         baseline = 0
         if nwins > 2: # always reports the start of and the end of the fex active window.
-            baseline = np.sum(self.peak[1][0].astype(np.uint32))
-            baseline //= len(self.peak[1][0])
-            xlist.extend(self.peak[0][1:nwins-2])
+            baseline = np.sum(peak[1][0].astype(np.uint32))
+            baseline //= len(peak[1][0])
+            xlist.extend(peak[0][1:nwins-2])
             for i in range(1,nwins-2):
-                #xlist += [ self.peak[0][i] ]
-                slist += [np.array(self.peak[1][i], dtype=np.int32)]
+                #xlist += [ peak[0][i] ]
+                slist += [np.array(peak[1][i], dtype=np.int32)]
 
         self.xlist = xlist
         self.slist = slist
         self.baseline = np.uint32(baseline)
-        return self
+
+        goodlist = [s is not None for s in slist]
+        if not all(goodlist):
+            print(f"process_fex2hits: some bad samples, {goodlist}")
+            return False
+        return True
 
     def process(self) -> bool:
         s = self.slist
@@ -244,11 +282,7 @@ class FexData(HsdData):
         e = []
         de = []
 
-        goodlist = [s is not None for s in slist]
-        if not all(goodlist):
-            print(f"process_fex2hits: some bad samples, {goodlist}")
-            return False
-        elif len(slist) > 2:
+        if len(slist) > 2:
             for i,s in enumerate(slist[:-1]):
                 if i == 0:
                     #self.baseline = quick_mean(s,4) # uint32
@@ -261,7 +295,6 @@ class FexData(HsdData):
                 e.extend([start+v for v in es])
                 de.extend( list(des) )
 
-        if len(slist) > 2:
             self.raw = s.astype(np.uint16, copy=True)
             self.logic = np.zeros(0, dtype=np.uint16)
         else:
@@ -271,6 +304,59 @@ class FexData(HsdData):
         self.slopes = de
         self.nedges = np.uint16(len(e))
         return True
+
+@stream
+def run_hsds(events, hsds, params,
+            ) -> Iterator[Optional[Dict[str,Any]]]:
+    # assume runhsd is True if this fn. is called
+
+    for eventnum, evt in events:
+        out = {}
+
+        ## test hsds
+        completeEvent = True
+        for hsdname, hsd in hsds.items():
+          for key in get_portnums(hsd).values():
+            idx = (hsdname, key)
+            port = params[idx]
+            if port.is_fex:
+                peak = hsd.raw.peaks(evt)
+                if peak is None:
+                    print('%i: hsds[%s].raw.peaks(evt) is None'%(eventnum,repr(idx)))
+                    completeEvent = False
+                else:
+                    out[idx] = FexData(port,
+                                       eventnum,
+                                       peak=peak[key][0])
+                    completeEvent = out[idx].ok
+            else:
+                wave = hsd.raw.waveforms(evt)
+                if wave is None:
+                    print('%i: hsds[%s].raw.waveforms(evt) is None'%(eventnum,repr(idx)))
+                    completeEvent = False
+                else:
+                    out[idx] = WaveData(port,
+                                        eventnum,
+                                        wave=wave[key][0])
+                    completeEvent = out[idx].ok
+            if not completeEvent:
+                break
+
+        ## finish testing all detectors to measure ##
+        ## before processing ##
+
+        ## process hsds
+        for idx, data in out.items():
+            ''' HSD-Abaco section '''
+            if not data.setup().process():
+                completeEvent = False
+                break
+
+        if completeEvent:
+            yield out
+        else:
+            yield None
+
 
 def should_save_raw(eventnum):
     # first 10 of every 10, then first 10 of every 100, ...

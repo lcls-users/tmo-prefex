@@ -4,6 +4,7 @@ from collections.abc import Callable
 from Config import DetectorConfig
 from Hsd import HsdConfig, WaveData, FexData
 from Gmd import GmdConfig, GmdData
+from Spect import SpectConfig, SpectData # was Vls?
 from utils import concat
 
 import numpy as np
@@ -33,9 +34,17 @@ class Batch(dict):
               'raw_lens': np.uint16,
               'logic_lens': np.uint16,
               'rl_data': np.int32, # rwl were u16,s16,s32
-              # from GMD detectors
+              # from Gmd detectors
               'GmdConfig': 'json',
               'energies': np.int16,
+              # from Spect detectors
+              #'v': int, 
+              'centroids': np.float16,
+              'vsum': np.uint64,
+              'vsize': np.int32,
+              # from Ebeam detectors
+              'l3energy': np.float16,
+              'l3offset': np.uint16,
              }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -21,52 +21,31 @@ from stream import (
     chop, map, filter
 )
 
-from Hsd import HsdConfig, WaveData, FexData, save_hsd
-from Ebeam import *
-#from Vls import *
-from Gmd import GmdConfig, GmdData, save_gmd
-from Spect import *
 from Config import Config
-#from utils import *
-from stream_utils import split, xmap
 
-from combine import batch_data, Batch
+from Hsd import HsdConfig, WaveData, FexData, setup_hsds, save_hsd
+from Ebeam import EbeamConfig, EbeamData, setup_ebeams, save_ebeam
+from Gmd import GmdConfig, GmdData, setup_gmds, save_gmd
+from Spect import SpectConfig, SpectData, setup_spects, save_spect
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)
-DetectorData = Union[WaveData, FexData, GmdData]
+DetectorData = Union[WaveData, FexData, GmdData, EbeamData, SpectData]
 EventData    = Dict[DetectorID, DetectorData]
 
-def setup_gmds(run, params):
-    # gmd-s store their output in xray-s
-    gmdnames = [s for s in run.detnames if s.endswith("gmd")]
-    
-    gmds = {}
-    for gmdname in gmdnames:
-        gmd = run.Detector(gmdname)
-        if gmd is None:
-            print(f'run.Detector({gmdname}) is None!')
-            continue
-        gmds[gmdname] = gmd
+def save_fex(run, params):
+    return setup_hsds(run, params, default_fex)
 
-        idx = (gmdname, 0)
-        if idx not in params:
-            cfg = GmdConfig(
-                name = gmdname
-            )
-            if 'x' in gmdname: # or gmdname.endswith('x')
-                cfg.unit = '0.1uJ'
-                cfg.scale = 10000
-            params[idx] = cfg
+# Plugin system for detector types:
+detector_configs = {
+    'hsd': (setup_fex, run_hsds, save_hsd),
+    'ebeam': (setup_ebeams, run_ebeams, save_ebeam),
+    'gmd': (setup_gmds, run_gmds, save_gmd),
+    'spect': (setup_spects, run_spects, save_spect),
+}
 
-    return gmds
-
-# FIXME: do we need .raw here?
-# can the keys() be ordered into a contiguous range?
-def get_portnums(hsd) -> Dict[int,int]:
-    ports = list(hsd.raw._seg_configs().keys())
-    ports.sort()
-    return dict(enumerate(ports))
+from stream_utils import split, xmap
+from combine import batch_data, Batch
 
 default_wave = HsdConfig(
     id=0, # psana's name for detector
@@ -95,120 +74,10 @@ default_fex = HsdConfig(
 #   t0=t0s[i]
 #   logicthresh=logicthresh[i]
 
-def setup_hsds(run, params, default):
-    """ Gather the dict of hsdname: hsd
-    for all detectors ending in 'hsd'.
-
-    Also adds defaults for this detector to params
-    if not present.
-    """
-    hsdnames = [s for s in run.detnames if s.endswith('hsd')]
-
-    hsds = {}
-    for hsdname in hsdnames:
-        hsd = run.Detector(hsdname)
-        if hsd is None:
-            print(f'run.Detector({hsdname}) is None!')
-            continue
-
-        hsds[hsdname] = hsd
-        for i,k in get_portnums(hsd).items():
-            idx = (hsdname,k)
-            if idx not in params:
-                cfg = default.copy()
-                cfg.name = hsdname
-                cfg.id = k
-                cfg.chankey = i
-                if default.is_fex:
-                    # guessing that 3/4 of the pre and post extension for
-                    # threshold crossing in fex is a good range for the
-                    # roll on and off of the signal
-                    cfg.roll_on = ( 3*int(hsd.raw._seg_configs()[k]
-                                        .config.user.fex.xpre) )>>2
-                    cfg.roll_off = (3*int(hsd.raw._seg_configs()[k]
-                                        .config.user.fex.xpost) )>>2
-                params[idx] = cfg
-    return hsds
-
 @source
 def run_events(run, start_event=0):
     for i, evt in enumerate(run.events()):
         yield i+start_event, evt
-
-@stream
-def run_gmds(events, gmds, params,
-            ) -> Iterator[Optional[EventData]]:
-    # assume rungmd is True if this fn. is called
-
-    for eventnum, evt in events:
-        completeEvent = True
-
-        out = {}
-        for gmdname, gmd in gmds.items():
-            idx = (gmdname, 0)
-            out[idx] = GmdData(params[idx],
-                               eventnum,
-                               gmd.raw.milliJoulesPerPulse(evt))
-            completeEvent = out[idx].ok
-            if not completeEvent:
-                break
-
-        if completeEvent:
-            yield out
-        else:
-            yield None
-
-@stream
-def run_hsds(events, hsds, params,
-            ) -> Iterator[Optional[EventData]]:
-    # assume runhsd is True if this fn. is called
-
-    for eventnum, evt in events:
-        out = {}
-
-        ## test hsds
-        completeEvent = True
-        for hsdname, hsd in hsds.items():
-          for key in get_portnums(hsd).values():
-            idx = (hsdname, key)
-            port = params[idx]
-            if port.is_fex:
-                peak = hsd.raw.peaks(evt)
-                if peak is None:
-                    print('%i: hsds[%s].raw.peaks(evt) is None'%(eventnum,repr(idx)))
-                    completeEvent = False
-                else:
-                    out[idx] = FexData(port,
-                                       eventnum,
-                                       peak=peak[key][0])
-                    completeEvent = out[idx].ok
-            else:
-                wave = hsd.raw.waveforms(evt)
-                if wave is None:
-                    print('%i: hsds[%s].raw.waveforms(evt) is None'%(eventnum,repr(idx)))
-                    completeEvent = False
-                else:
-                    out[idx] = WaveData(port,
-                                        eventnum,
-                                        wave=wave[key][0])
-                    completeEvent = out[idx].ok
-            if not completeEvent:
-                break
-
-        ## finish testing all detectors to measure ##
-        ## before processing ##
-
-        ## process hsds
-        for idx, data in out.items():
-            ''' HSD-Abaco section '''
-            if not data.setup().process():
-                completeEvent = False
-                break
-
-        if completeEvent:
-            yield out
-        else:
-            yield None
 
 @sink
 def write_out(inp: Iterator[Batch], outname: str) -> None:
@@ -223,31 +92,21 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     #### CONFIGURATION ####
     #######################
     cfgname = '%s/%s.%s.configs.yaml'%(scratchdir,expname,os.environ.get('USER'))
-    if Path(cfgname).exists():
-        cfg = Config.load(cfgname)
+    inp_cfg = 'config.yaml'
+    if Path(inp_cfg).exists():
+        cfg = Config.load(inp_cfg)
     else:
         cfg = Config()
     params = cfg.to_dict()
 
-    '''
-    spect = [Vls(params['vlsthresh']) for r in runnums]
-    _ = [s.setwin(params['vlswin'][0],params['vlswin'][1]) for s in spect]
-    #_ = [s.setthresh(params['vlsthresh']) for s in spect]
-    ebunch = [Ebeam() for r in runnums]
-    _ = [e.setoffset(params['l3offset']) for e in ebunch]
-    '''
-    runhsd=True
-    rungmd=True
-    runlcams=False
-    runtiming=False
-
-    runvls=False
-    runebeam=False
-    runxtcav=False
+    enabled_detectors = ['hsd', 'gmd']
+    assert len(enabled_detectors) > 0, "No detectors enabled!"
+    # ['spect', 'ebeam', 'lcams', 'timing', 'xtcav']
+    # note: rename vls <-> spect
 
     '''
     timings = []
-    vlss = []
+    spects = []
     ebeams = []
     xtcavs = []
     '''
@@ -256,30 +115,29 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     #### Setting up the datasource ####
     ###################################
     ds = psana.DataSource(exp=expname,run=runnums)
-    for i,r in enumerate(runnums):
-        run = next(ds.runs())
+    for i,run in enumerate(ds.runs()):
         outname = '%s/hits.%s.run_%03i.h5'%(scratchdir,expname,run.runnum)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
         #fake_save = lambda lst: {} ## fake save for testing
-        if runhsd:
-            hsds = setup_hsds(run, params, default_fex)
-            runs.append(run_hsds(hsds, params))
-            saves.append(save_hsd)
-        if rungmd:
-            gmds = setup_gmds(run, params)
-            runs.append(run_gmds(gmds, params))
-            saves.append(save_gmd)
+        for detector_type in enabled_detectors:
+            setup, run, save = detector_configs[detector_type]
+            detectors = setup(run, params)
+            runs.append(run(detectors, params))
+            saves.append(save)
+
         # Save these params.
         if i == 0:
-            Config.from_dict(params).save(cfgname, overwrite=True)
+            Config.from_dict(params).save(cfgname)
             print(f"Saving config to {cfgname}")
 
         # 2. Assemble the stream to execute
 
         # - Start from a stream of (eventnum, event).
         s = run_events(run)
+        if nshots > 0: # truncate to nshots?
+            s >>= take(nshots)
         # - Run those through both run_hsds and run_gmds,
         #   producing a stream of ( Dict[DetectorID,HsdData],
         #                           Dict[DetectorID,GmdData] )
@@ -287,8 +145,6 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         # - but don't pass items that contain any None-s.
         #   (note: classes test as True)
         s >>= filter(all)
-        if nshots > 0: # truncate to nshots?
-            s >>= take(nshots)
         # - Now chop the stream into lists of length 100.
         s >>= chop(100)
         # - Now save each grouping as a "Batch".

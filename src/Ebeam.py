@@ -1,56 +1,59 @@
+from typing import List, Any, Optional, Dict
+from collections.abc import Iterator
+
 import numpy as np
+from pydantic import BaseModel
+from stream import stream
 
-class Ebeam:
-    def __init__(self):
-        self.l3 = []
-        self.l3offset=5100
-        self.initState = True
-        return 
+class EbeamConfig(BaseModel):
+    l3offset: float = 5100 # int
 
-    @classmethod
-    def slim_update_h5(cls,f,ebunch,ebeamEvents):
-        grpebeam = None
-        if 'ebeam' in f.keys():
-            grpebeam = f['ebeam']
-        else:
-            grpebeam = f.create_group('ebeam')
-        d = grpebeam.create_dataset('l3energy',data=ebunch.l3,dtype=np.float16)
-        d.attrs.create('l3offset',ebunch.l3offset,dtype=np.uint16)
-        return
+class EbeamData:
+    def __init__(self,
+                 cfg: EbeamConfig,
+                 event: int,
+                 l3in):
+        self.cfg = cfg
+        self.event = event
 
-    @classmethod
-    def update_h5(cls,f,ebunch,ebeamEvents):
-        grpebeam = None
-        if 'ebeam' in f.keys():
-            grpebeam = f['ebeam']
-        else:
-            grpebeam = f.create_group('ebeam')
-        d = grpebeam.create_dataset('l3energy',data=ebunch.l3,dtype=np.float16)
-        d.attrs.create('l3offset',ebunch.l3offset,dtype=np.uint16)
-        return
+        self.ok = False
+        if l3in is None:
+            return
 
-    def setoffset(self,x):
-        self.l3offset = int(x)
-        return self
-
-    def test(self,l3in):
-        if type(l3in)==type(None):
-            return False
         try:
-            d = np.float16(float(l3in)-float(self.l3offset))
+            self.l3 = np.float16(float(l3in)-float(cfg.l3offset))
         except:
             print('Damnit, Ebeam!')
-            return False
-        return True
+            return
+        self.ok = True
 
-    def process(self,l3in):
-        d = np.float16(float(l3in)-float(self.l3offset))
-        if self.initState:
-            self.l3 = [d]
-        else:
-            self.l3 += [d]
-        return True
+    def process(self):
+        pass
 
-    def set_initState(self,state):
-        self.initState = state
-        return self
+@stream
+def run_ebeams(events, ebeams, params) -> Iterator[Optional[Any]]:
+    for eventnum, evt in events:
+        completeEvent = True
+
+        out = {}
+        for name, detector in ebeams.items():
+            idx = (name, 0)
+            out[idx] = EbeamData(params[idx],
+                                 eventnum,
+                                 detector.raw.the_ebeam_value(evt))
+            completeEvent = out[idx].ok
+            if not completeEvent:
+                break
+    if completeEvent:
+        yield out
+    else:
+        yield None
+
+def save_ebeam(data: List[GmdData]) -> Dict[str,Any]:
+    if len(data) == 0:
+        return {}
+    return dict(
+        config = data[0].cfg,
+        events   = np.array([x.event for x in data], dtype=np.uint32),
+        l3energy = np.array([x.l3 for x in data], dtype=np.float16)
+    )

@@ -1,10 +1,9 @@
+from typing import List, Any, Dict
+import sys
+
+from pydantic import BaseModel
 
 import numpy as np
-import typing
-from typing import List
-import h5py
-import sys
-import math
 
 def getCentroid(data,pct=.8):
     csum = np.cumsum(data.astype(float))
@@ -30,94 +29,76 @@ def getSplit(data):
         #print(index)
     return index
 
-class Spect:
-    def __init__(self,thresh) -> None:
-        self.v = []
-        self.vsize = int(0)
-        self.vc = []
-        self.vs = []
-        self.initState = True
-        self.vlsthresh = thresh
-        self.winstart = 0
-        self.winstop = 1<<11
-        return
+class SpectConfig(BaseModel):
+    name: str
+    vlsthresh: int
+    winstart: int = 0
+    winstop: int = 1<<11
 
-    @classmethod
-    def slim_update_h5(cls,f,spect,vlsEvents):
-        grpvls = None
-        if 'spect' in f.keys():
-            grpvls = f['spect']
-        else:
-            grpvls = f.create_group('spect')
+def setup_spects(run, param):
+    spectnames = [s for s in run.detnames \
+                    if s.endswith('piranha')]
 
-        grpvls.create_dataset('centroids',data=spect.vc,dtype=np.float16)
-        grpvls.create_dataset('sum',data=spect.vs,dtype=np.uint64)
-        grpvls.attrs.create('size',data=spect.vsize,dtype=np.int32)
-        grpvls.create_dataset('events',data=vlsEvents)
-        return 
+    dets = {}
+    for name in names:
+        det = run.Detector(name)
+        if dat is None:
+            print(f'run.Detector({name}) is None!')
+            continue
+        dets[name] = det
 
-    @classmethod
-    def update_h5(cls,f,spect,vlsEvents):
-        grpvls = None
-        if 'spect' in f.keys():
-            grpvls = f['spect']
-        else:
-            grpvls = f.create_group('spect')
+        idx = (name, 0)
+        if idx not in params:
+            cfg = SpectConfig(
+                name = name,
+                vlsthresh = 1000,
+                winstart = 1024,
+                winstop = 2048
+            )
+            params[idx] = cfg
 
-        grpvls.create_dataset('data',data=spect.v,dtype=int)
-        grpvls.create_dataset('centroids',data=spect.vc,dtype=np.float16)
-        grpvls.create_dataset('sum',data=spect.vs,dtype=np.uint64)
-        grpvls.attrs.create('size',data=spect.vsize,dtype=np.int32)
-        grpvls.create_dataset('events',data=vlsEvents)
-        return
+    return dets
 
-    def setthresh(self,x):
-        self.vlsthresh = x
-        return self
+class SpectData:
+    def __init__(self,
+                 cfg: SpectConfig,
+                 event: int,
+                 wv
+                 ) -> None:
+        self.cfg = cfg
+        self.event = event
 
-    def setwin(self,low,high):
-        self.winstart = int(low)
-        self.winstop = int(high)
-        return self
-
-    def test(self,wv):
-        mean = np.int16(0)
-        if type(wv)==type(None):
-            return False
+        self.ok = False
+        if wv is None:
+            return
         try:
-            mean = np.int16(np.mean(wv[1800:])) # this subtracts baseline
+            # this subtracts baseline
+            mean = np.int16(wv[1800:].mean())
         except:
             print('Damnit, Piranha!')
-            return False
-        else:
-            if (np.max(wv)-mean)<self.vlsthresh:
-                #print('Minnow, not a Piranha!')
-                return False
-        return True
+            return
+        if (wv.max() - mean) < cfg.vlsthresh:
+            #print('Minnow, not a Piranha!')
+            return
+        self.ok = True
+        self.v = (wv-mean).astype(np.int16, copy=True)
 
-    def process(self, wv):
-        mean = np.int16(np.mean(wv[1800:])) # this subtracts baseline
-        if (np.max(wv)-mean)<self.vlsthresh:
-            return False
-        d = np.copy(wv-mean).astype(np.int16)
-        c,s = getCentroid(d[self.winstart:self.winstop],pct=0.8)
-        if self.initState:
-            self.v = [d]
-            self.vsize = len(self.v)
-            self.vc = [np.float16(c)]
-            self.vs = [np.uint64(s)]
-            self.initState = False
-        else:
-            self.v += [d]
-            self.vc += [np.float16(c)]
-            self.vs += [np.uint64(s)]
-        return True
+    def process(self):
+        cfg = self.cfg
+        c,s = getCentroid(self.v[cfg.winstart:cfg.winstop], pct=0.8)
 
-    def set_initState(self,state: bool):
-        self.initState = state
-        return self
+        self.vsize = len(self.v)
+        self.vc = np.float16(c)
+        self.vs = np.uint64(s)
 
-    def print_v(self):
-        print(self.v[:10])
-        return self
-
+def save_spec(data: List[SpectData]) -> Dict[str,Any]:
+    if len(data) == 0:
+        return {}
+    return dict(
+        config = data[0].cfg,
+        events = np.array([x.event for x in data], dtype=np.uint32),
+        centroids = np.array([x.vc for x in data], dtype=np.float16),
+        vsum = np.array([x.vs for x in data], dtype=np.uint64),
+        vsize = np.array([x.vsize for x in data], dtype=np.int32),
+        # capture any raw x.v?
+    )

@@ -2,8 +2,8 @@
 from pathlib import Path
 import sys
 sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-here = str(Path(__file__).absolute().parent
-sys.path.append(here.parent / "src")
+here = Path(__file__).absolute().parent
+sys.path.append(str(here.parent / "src"))
 
 import numpy as np
 import h5py
