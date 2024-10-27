@@ -28,7 +28,27 @@ class EbeamData:
         self.ok = True
 
     def process(self):
-        pass
+        return self
+
+def setup_ebeams(run, params):
+    enames = [s for s in run.detnames if s.endswith("ebeam")]
+
+    ebeams = {}
+    for name in enames:
+        beam = run.Detector(name)
+        if beam is None:
+            print(f'run.Detector({name}) is None!')
+            continue
+        ebeams[name] = beam
+
+        idx = (name, 0)
+        if idx not in params:
+            cfg = EbeamConfig(
+                name = gmdname,
+                l3offset = 5100
+            )
+            params[idx] = cfg
+    return ebeams
 
 @stream
 def run_ebeams(events, ebeams, params) -> Iterator[Optional[Any]]:
@@ -44,12 +64,13 @@ def run_ebeams(events, ebeams, params) -> Iterator[Optional[Any]]:
             completeEvent = out[idx].ok
             if not completeEvent:
                 break
-    if completeEvent:
-        yield out
-    else:
-        yield None
 
-def save_ebeam(data: List[GmdData]) -> Dict[str,Any]:
+        if completeEvent:
+            yield out
+        else:
+            yield None
+
+def save_ebeam(data: List[EbeamData]) -> Dict[str,Any]:
     if len(data) == 0:
         return {}
     return dict(

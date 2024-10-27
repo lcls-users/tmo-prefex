@@ -38,7 +38,8 @@ def save_fex(run, params):
 
 # Plugin system for detector types:
 detector_configs = {
-    'hsd': (setup_fex, run_hsds, save_hsd),
+    # NOTE: defaults to fex-type hsd setup
+    'hsd': (setup_hsd, run_hsds, save_hsd),
     'ebeam': (setup_ebeams, run_ebeams, save_ebeam),
     'gmd': (setup_gmds, run_gmds, save_gmd),
     'spect': (setup_spects, run_spects, save_spect),
@@ -46,33 +47,6 @@ detector_configs = {
 
 from stream_utils import split, xmap
 from combine import batch_data, Batch
-
-default_wave = HsdConfig(
-    id=0, # psana's name for detector
-    chankey=0, # our name for detector
-    # -- may want to use chankey to store the PCIe
-    #    address id or the HSD serial number.
-    is_fex = False,
-    name = '',
-    inflate = 2,
-    expand = 4,
-    logic_thresh = 18000,
-    roll_on = 1<<6,
-    roll_off = 1<<6,
-)
-default_fex = HsdConfig(
-    id=0, # psana's name for detector
-    chankey=0, # our name for detector
-    # -- may want to use chankey to store the PCIe
-    #    address id or the HSD serial number.
-    is_fex = True,
-    name = '',
-    inflate = 2,
-    expand = 4,
-    logic_thresh = 18000,
-)
-#   t0=t0s[i]
-#   logicthresh=logicthresh[i]
 
 @source
 def run_events(run, start_event=0):
@@ -145,6 +119,7 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         # - but don't pass items that contain any None-s.
         #   (note: classes test as True)
         s >>= filter(all)
+        s >>= map(lambda x: (y.process() for y in x))
         # - Now chop the stream into lists of length 100.
         s >>= chop(100)
         # - Now save each grouping as a "Batch".

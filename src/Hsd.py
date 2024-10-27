@@ -114,6 +114,34 @@ class HsdConfig(BaseModel):
             slopes += [float((theta[1]+x0*theta[2])/2**18)] ## scaling to reign in the obscene derivatives... probably shoul;d be scaling d here instead
         return tofs,slopes,np.uint32(len(tofs))
 
+default_wave = HsdConfig(
+    id=0, # psana's name for detector
+    chankey=0, # our name for detector
+    # -- may want to use chankey to store the PCIe
+    #    address id or the HSD serial number.
+    is_fex = False,
+    name = '',
+    inflate = 2,
+    expand = 4,
+    logic_thresh = 18000,
+    roll_on = 1<<6,
+    roll_off = 1<<6,
+)
+default_fex = HsdConfig(
+    id=0, # psana's name for detector
+    chankey=0, # our name for detector
+    # -- may want to use chankey to store the PCIe
+    #    address id or the HSD serial number.
+    is_fex = True,
+    name = '',
+    inflate = 2,
+    expand = 4,
+    logic_thresh = 18000,
+)
+#   t0=t0s[i]
+#   logicthresh=logicthresh[i]
+
+
 # FIXME: do we need .raw here?
 # can the keys() be ordered into a contiguous range?
 def get_portnums(hsd) -> Dict[int,int]:
@@ -122,7 +150,7 @@ def get_portnums(hsd) -> Dict[int,int]:
     return dict(enumerate(ports))
 
 
-def setup_hsds(run, params, default) -> Dict[str,Any]:
+def setup_hsds(run, params, default=default_fex) -> Dict[str,Any]:
     """ Gather the dict of hsdname: hsd
     for all detectors ending in 'hsd'.
 
@@ -185,7 +213,7 @@ class WaveData(HsdData):
         self.raw = np.array(wave, dtype=np.int16) # presumably 12 bits unsigned input, cast as int16_t since will immediately in-place subtract baseline
         #self.baseline = np.uint32(1<<8)
 
-    def process(self) -> bool:
+    def process(self):
         cfg = self.cfg
         s = self.raw # data.wave as np.int16
         x = 0
@@ -201,7 +229,7 @@ class WaveData(HsdData):
         self.tofs = e
         self.slopes = de
         self.nedges = np.uint32(ne)
-        return True
+        return self
 
 """
 TODO: ensure that process() logic follows this pattern:

@@ -50,6 +50,9 @@ class GmdData:
             self.ok = True
             self.energy = np.uint16(energy*self.cfg.scale)
 
+    def process(self):
+        return self
+
 @stream
 def run_gmds(events, gmds, params) -> Iterator[Optional[Any]]:
     # assume rungmd is True if this fn. is called

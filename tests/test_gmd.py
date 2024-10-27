@@ -13,6 +13,10 @@ def test_config():
 def test_data():
     cfg = GmdConfig(name='gmd')
     data = GmdData(cfg, 10, 0.112)
+    assert data.ok
+
+    data = GmdData(cfg, 10, None)
+    assert not data.ok
 
 class FakeGmd:
     def __init__(self, en):
@@ -29,8 +33,8 @@ def test_run():
 
 def test_save():
     cfg = GmdConfig(name='gmd', scale=1000)
-    g1 = GmdData(cfg, 10, 0.112)
-    g2 = GmdData(cfg, 11, 0.101)
+    g1 = GmdData(cfg, 10, 0.112).process()
+    g2 = GmdData(cfg, 11, 0.101).process()
     ans = save_gmd([g1, g2])
     assert ans['config'] == cfg
     assert np.allclose(ans['events'], np.array([10,11]))

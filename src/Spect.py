@@ -1,7 +1,8 @@
-from typing import List, Any, Dict
-import sys
+from typing import List, Any, Dict, Optional
+from collections.abc import Iterator
 
 from pydantic import BaseModel
+from stream import stream
 
 import numpy as np
 
@@ -90,8 +91,29 @@ class SpectData:
         self.vsize = len(self.v)
         self.vc = np.float16(c)
         self.vs = np.uint64(s)
+        return self
 
-def save_spec(data: List[SpectData]) -> Dict[str,Any]:
+@stream
+def run_spects(events, spects, params) -> Iterator[Optional[Dict[str,Any]]]:
+    for eventnum, evt in events:
+        completeEvent = True
+
+        out = {}
+        for name, detector in spects.items():
+            idx = (name, 0)
+            out[idx] = SpectData(params[idx],
+                                 eventnum,
+                                 detector.raw.get_spect_data(evt))
+            completeEvent = out[idx].ok
+            if not completeEvent:
+                break
+
+        if completeEvent:
+            yield out
+        else:
+            yield None
+
+def save_spect(data: List[SpectData]) -> Dict[str,Any]:
     if len(data) == 0:
         return {}
     return dict(
