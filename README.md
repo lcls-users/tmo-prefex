@@ -1,6 +1,13 @@
 # Latest update...
 Todo, update the .h5 files on /lscratch and then move to /sdf/data/lcls/...  
+Alright,  this submits as sequence of runs.  nshots and other parameters are set by the slurmscript.  
+This slurmscript can also be executed from an interactive node as a bash script.  
 
+```bash
+for r in $(seq 70 79); do sbatch slurmscript.bash tmox1016823 $r;done
+```
+
+For a future when event building is not needed...  
 Thank you Chris O'Grady!  
 ```python
 expname = 'tmox1016823'
@@ -10,7 +17,6 @@ dslist = [psana.DataSource(files='/sdf/data/lcls/ds/tmo/%s/xtc/%s-%s-%s-c000.xtc
 ```
 
 Chris says also that one can also see what hsd segments are in a file with this command:  
-
 ```bash
 detnames -i /sdf/data/lcls/ds/tmo/tmoc00123/xtc/tmoc00123-r0022-s010-c000.xtc2
 ```

@@ -1,33 +1,52 @@
 #!/usr/bin/bash
-# assume 5 hours for each run of about 50k shots
 
 #SBATCH --partition=roma
-#
-#SBATCH --job-name=hits2h5_min
+#SBATCH --account=lcls:tmox1016823
+#SBATCH --job-name=fex2h5
 #SBATCH --output=../output-%j.stdout
 #SBATCH --error=../output-%j.errout
-#
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=8g
-#
-#SBATCH --time=0-08:00:00
-#
+#SBATCH --time=0-05:00:00
+#SBATCH --mail-user=coffee@slac.stanford.edu
+#SBATCH --mail-type=FAIL,END
 #SBATCH --gpus 0
 
-source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
-export scratchpath=/sdf/data/lcls/ds/tmo/tmox42619/scratch/ryan_output_slurm/h5files
+export logpath=$HOME/slurmout
+if ! [ -f $logpath ]; then
+	mkdir -p $HOME/slurmout
+fi
+
+export expname=$1
+export runnum=$2
+export runstr="r$(printf "%04i" $2)"
+export nshots=250000
+echo "trying to run $expname $runstr $nshots"
+export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
+export finalpath=/sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/$runstr
+export scratchpath=/lscratch/$USER/h5files/$runstr
+export configpath=/lscratch/$USER/configs/$runstr
 if ! [ -f $scratchpath ]; then
+	echo "creating $scratchpath"
 	mkdir -p $scratchpath
 fi
-export datapath=/sdf/data/lcls/ds/tmo/tmox42619/xtc
-export expname=tmox42619
-export nshots=100000
-export configfile=${scratchpath}/${expname}.hsdconfig.h5
-printf -v runstr "r%04d" $1
+if ! [ -f $configpath ]; then
+	echo "creating $configpath"
+	mkdir -p $configpath
+fi
+if ! [ -f $finalpath ]; then
+	echo "creating $finalpath"
+	mkdir -p $finalpath
+fi
+
 if [ -f ${datapath}/${expname}-${runstr}-s000-c000.xtc2 ]; then
-	python3 ./src/set_configs.py ${configfile}
-	python3 ./src/hits2h5_minimal.py $1
+	source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
+	python3 $HOME/tmo-prefex/src/fex2h5.py $nshots $expname $runnum
+	echo "syncing $scratchpath to $finalpath \nand then removing $scratchpath"
+	rsync -pruv $scratchpath/* $finalpath/
+	rsync -pruv $configpath/* $finalpath/
+	rm -rf $scratchpath
 else
 	echo "XTC2 file not found for run ${expname}:${runstr}"
 fi

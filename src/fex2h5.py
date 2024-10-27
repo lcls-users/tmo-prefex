@@ -1,4 +1,4 @@
-#!/sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
+#!/sdf/group/lcls/ds/ana/sw/conda2/inst/envs/ps-4.6.3/bin/python3
 
 import psana
 import numpy as np
@@ -21,16 +21,17 @@ from utils import *
 
 
 
-def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
+def main(nshots:int,runnums:List[int]):
   
     outnames = {}
+    expname = os.environ.get('expname')
 
     _=[print('starting analysis exp %s for run %i'%(expname,int(r))) for r in runnums]
 
     #######################
     #### CONFIGURATION ####
     #######################
-    cfgname = '%s/%s.%s.configs.h5'%(scratchdir,expname,os.environ.get('USER'))
+    cfgname = '%s/config.h5'%(os.environ.get('configpath'))
     configs = Config(is_fex=True)
     params = configs.writeconfigs(cfgname).getparams()
     is_fex = params['is_fex']
@@ -100,7 +101,7 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
 
         chankeys.update({rkey:{}})
         detslist.update({rkey:[s for s in run.detnames]})
-        outnames.update({rkey:'%s/hits.%s.run_%03i.h5'%(scratchdir,expname,rkey)})
+        outnames.update({rkey:'%s/hits.%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
 
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
@@ -304,12 +305,10 @@ def main(nshots:int,expname:str,runnums:List[int],scratchdir:str):
 if __name__ == '__main__':
     if len(sys.argv)>3:
         nshots = int(sys.argv[1])
-        expname = sys.argv[2]
         runnums = [int(r) for r in list(sys.argv[3:])]
-        print('Before finalizing, clean up to point to common area for output .h5')
-        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files/%s'%(expname,os.environ.get('USER'),socket.gethostname())
-        if not os.path.exists(scratchdir):
-            os.makedirs(scratchdir)
-        main(nshots,expname,runnums,scratchdir)
+        scratchpath = os.environ.get('scratchpath')
+        if not os.path.exists('scratchpath'):
+            os.makedirs('scratchpath')
+        main(nshots,runnums)
     else:
-        print('Please give me a number of shots (-1 for all), experiment name, a list of run numbers, and output directory defaults to expt scratch directory)')
+        print('Please be sure that expname is set in env and exported\n also give me a number of shots (-1 for all) and a list of run numbers.\n the output directory defaults to expt scratch directory and controlled by envvar as well.)')
