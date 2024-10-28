@@ -23,8 +23,8 @@ class Batch(dict):
         as produced by save_batch.
     """
     dtypes = {'events': np.uint32,
+              'config': 'json',
               # from HSD detectors
-              'HsdConfig': 'json',
               'addresses': np.uint64,
               'nedges': np.uint64,
               'tofs': np.uint64,
@@ -35,7 +35,6 @@ class Batch(dict):
               'logic_lens': np.uint16,
               'rl_data': np.int32, # rwl were u16,s16,s32
               # from Gmd detectors
-              'GmdConfig': 'json',
               'energies': np.int16,
               # from Spect detectors
               #'v': int, 

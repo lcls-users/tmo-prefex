@@ -1,10 +1,15 @@
-l3offset: 5100
 # apparently the ordering is 0,1,2,4,5,12,13,14,15,16
 
 # Note: t0s are not accounting for the expand nor inflate,
 # digitizer units, 6GSps, so 6k = 1usec
 detectors:
-- name: piranah
+- name: ebeam
+  l3offset: 5100
+- name: tmo_fzppiranha
+  vlsthresh: 1000
+  winstart: 1024
+  winstop: 2048
+- name: tmo_atmpiranha
   vlsthresh: 1000
   winstart: 1024
   winstop: 2048
@@ -34,95 +39,95 @@ detectors:
   name: mrco_hsd
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
   baselim: 64
 - chankey: 1
   id: 22
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 2
   id: 45
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 3
   id: 67
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 4
   id: 90
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 5
   id: 112
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 6
   id: 135
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 7
   id: 157
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 8
   id: 180
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 9
   id: 202
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 10
   id: 225
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 11
   id: 247
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 12
   id: 270
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 13
   id: 292
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 14
   id: 315
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0
 - chankey: 15
   id: 337
   <<: *default
   roll_off: 6
   roll_on: 6
-  t0: 4200
+  t0: 0

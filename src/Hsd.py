@@ -138,8 +138,6 @@ default_fex = HsdConfig(
     expand = 4,
     logic_thresh = 18000,
 )
-#   t0=t0s[i]
-#   logicthresh=logicthresh[i]
 
 
 # FIXME: do we need .raw here?
@@ -263,11 +261,11 @@ class FexData(HsdData):
         self.processAlgo = 'fex2hits'
 
         if peak is not None:
-            self.ok = self.setup(peak)
+            self.ok = self._setup(peak)
         else:
             self.ok = False
 
-    def setup(self, peak) -> "FexData":
+    def _setup(self, peak) -> "FexData":
         "compute and set self.{baseline, xlist, slist}"
         xlist: List[int] = []
         slist: List[np.ndarray] = []
@@ -292,14 +290,16 @@ class FexData(HsdData):
             return False
         return True
 
-    def process(self) -> bool:
+    def process(self):
         s = self.slist
         x = self.xlist
         if self.processAlgo =='fex2coeffs':
-            return self.process_fex2coeffs(s,x)
+            self.process_fex2coeffs(s, x)
         elif self.processAlgo == 'fex2hits':
-            return self.process_fex2hits(s,x)
-        raise KeyError(self.processAlgo)
+            self.process_fex2hits(s, x)
+        else:
+            raise KeyError(self.processAlgo)
+        return self
 
     def process_fex2coeffs(self,s,x):
         print('HERE HERE HERE HERE')
@@ -370,16 +370,6 @@ def run_hsds(events, hsds, params,
             if not completeEvent:
                 break
 
-        ## finish testing all detectors to measure ##
-        ## before processing ##
-
-        ## process hsds
-        for idx, data in out.items():
-            ''' HSD-Abaco section '''
-            if not data.setup().process():
-                completeEvent = False
-                break
-
         if completeEvent:
             yield out
         else:
@@ -408,6 +398,17 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
         return {}
     events = [x.event for x in waves]
     nedges = [x.nedges for x in waves]
+    events = []
+    nedges = []
+    tofs = []
+    slopes = []
+    for x in waves:
+        if x.nedges == 0:
+            continue
+        events.append(x.event)
+        nedges.append(x.nedges)
+        tofs.append(x.tofs)
+        slopes.append(x.slopes)
 
     # combine [raw,logic] together
     # at ea. rl_event[i], rl_addresses[i]
@@ -418,7 +419,8 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
     raw_lens = []
     logic_lens = []
     k = 0
-    for i, ev in enumerate(events):
+    for i, x in enumerate(waves):
+        ev = x.event
         if should_save_raw(ev):
             u = len(waves[i].raw)
             v = len(waves[i].logic)
@@ -431,12 +433,17 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
             logic_lens.append(v)
             k += u+v
 
+    nedges = np.array(nedges, dtype=np.uint64)
+    if len(nedges) == 0:
+        addresses = np.array([], dtype=np.uint64)
+    else:
+        addresses = nedges.cumsum()-nedges[0],
     return dict(
         config = waves[0].cfg,
-        events = events,
-        addresses = np.cumsum(nedges)-nedges[0],
-        tofs = concat(x.tofs for x in waves),
-        slopes = concat(x.slopes for x in waves),
+        events = np.array(events, dtype=np.uint32),
+        addresses = addresses,
+        tofs = concat(tofs),
+        slopes = concat(slopes),
         nedges = nedges,
 
         rl_events = rl_events,

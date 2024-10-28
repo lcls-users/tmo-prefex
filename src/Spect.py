@@ -36,14 +36,14 @@ class SpectConfig(BaseModel):
     winstart: int = 0
     winstop: int = 1<<11
 
-def setup_spects(run, param):
+def setup_spects(run, params):
     spectnames = [s for s in run.detnames \
                     if s.endswith('piranha')]
 
     dets = {}
-    for name in names:
+    for name in spectnames:
         det = run.Detector(name)
-        if dat is None:
+        if det is None:
             print(f'run.Detector({name}) is None!')
             continue
         dets[name] = det
@@ -103,7 +103,7 @@ def run_spects(events, spects, params) -> Iterator[Optional[Dict[str,Any]]]:
             idx = (name, 0)
             out[idx] = SpectData(params[idx],
                                  eventnum,
-                                 detector.raw.get_spect_data(evt))
+                                 detector.raw.raw(evt))
             completeEvent = out[idx].ok
             if not completeEvent:
                 break

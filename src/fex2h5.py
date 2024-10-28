@@ -11,10 +11,6 @@ import socket
 import h5py
 import psana
 import numpy as np
-# python3 -m venv --system-site-packages ./venv
-# . ./venv/bin/activate
-# which pip # ensure pip path points to venv!!!
-# pip install -r ../requirements.txt
 from stream import (
     stream, source, sink,
     take, Source, takei, seq,
@@ -23,10 +19,10 @@ from stream import (
 
 from Config import Config
 
-from Hsd import HsdConfig, WaveData, FexData, setup_hsds, save_hsd
-from Ebeam import EbeamConfig, EbeamData, setup_ebeams, save_ebeam
-from Gmd import GmdConfig, GmdData, setup_gmds, save_gmd
-from Spect import SpectConfig, SpectData, setup_spects, save_spect
+from Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
+from Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
+from Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
+from Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)
@@ -39,7 +35,7 @@ def save_fex(run, params):
 # Plugin system for detector types:
 detector_configs = {
     # NOTE: defaults to fex-type hsd setup
-    'hsd': (setup_hsd, run_hsds, save_hsd),
+    'hsd': (setup_hsds, run_hsds, save_hsd),
     'ebeam': (setup_ebeams, run_ebeams, save_ebeam),
     'gmd': (setup_gmds, run_gmds, save_gmd),
     'spect': (setup_spects, run_spects, save_spect),
@@ -61,6 +57,14 @@ def write_out(inp: Iterator[Batch], outname: str) -> None:
         with h5py.File(name,'w') as f:
             batch.write_h5(f)
 
+def process_all(tps):
+    for dtype in tps:
+        for k, v in dtype.items():
+            w = v.process()
+            if w != v:
+                print(f"{dtype} - incorrect return from process()")
+    return tps
+
 def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     #######################
     #### CONFIGURATION ####
@@ -68,11 +72,15 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     cfgname = '%s/%s.%s.configs.yaml'%(scratchdir,expname,os.environ.get('USER'))
     inp_cfg = 'config.yaml'
     if Path(inp_cfg).exists():
+        print("Reading config.yaml")
         cfg = Config.load(inp_cfg)
     else:
-        cfg = Config()
+        raise ValueError("No config.yaml")
+        #cfg = Config()
     params = cfg.to_dict()
 
+    #enabled_detectors = ['hsd', 'gmd', 'spect']
+    # note: most spect results are None - likely because vlsthresh is 1000
     enabled_detectors = ['hsd', 'gmd']
     assert len(enabled_detectors) > 0, "No detectors enabled!"
     # ['spect', 'ebeam', 'lcams', 'timing', 'xtcav']
@@ -83,28 +91,45 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     spects = []
     ebeams = []
     xtcavs = []
+
+    # for i,run in enumerate(ds.runs()) hangs after last run
+    ^C
+        main(nshots,expname,runnums,scratchdir)
+  File "/sdf/home/r/rogersdd/src/tmo-prefex/src/fex2h5.py", line 99, in main
+    for i,run in enumerate(ds.runs()):
+  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 89, in runs
+    while self._start_run():
+  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 79, in _start_run
+    if self._setup_beginruns():  # try to get next run from current files
+  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 74, in _setup_beginruns
+    dgrams = self.smdr_man.get_next_dgrams()
+  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/smdreader_manager.py", line 147, in get_next_dgrams
+    self.smdr.find_view_offsets(batch_size=1, ignore_transition=False)
+KeyboardInterrupt
     '''
+
 
     ###################################
     #### Setting up the datasource ####
     ###################################
     ds = psana.DataSource(exp=expname,run=runnums)
-    for i,run in enumerate(ds.runs()):
+    for i in range(len(runnums)):
+        run = next(ds.runs()) # don't call next unless you know it's there...
         outname = '%s/hits.%s.run_%03i.h5'%(scratchdir,expname,run.runnum)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
         #fake_save = lambda lst: {} ## fake save for testing
         for detector_type in enabled_detectors:
-            setup, run, save = detector_configs[detector_type]
+            setup, get, save = detector_configs[detector_type]
             detectors = setup(run, params)
-            runs.append(run(detectors, params))
+            runs.append(get(detectors, params))
             saves.append(save)
 
         # Save these params.
         if i == 0:
-            Config.from_dict(params).save(cfgname)
             print(f"Saving config to {cfgname}")
+            Config.from_dict(params).save(cfgname, overwrite=True)
 
         # 2. Assemble the stream to execute
 
@@ -119,7 +144,7 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         # - but don't pass items that contain any None-s.
         #   (note: classes test as True)
         s >>= filter(all)
-        s >>= map(lambda x: (y.process() for y in x))
+        s >>= map(process_all)
         # - Now chop the stream into lists of length 100.
         s >>= chop(100)
         # - Now save each grouping as a "Batch".

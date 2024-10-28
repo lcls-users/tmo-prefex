@@ -29,7 +29,7 @@ def test_data():
 class FakeSpect:
     def __init__(self):
         self.raw = self
-    def get_spect_data(self, evt):
+    def raw(self, evt):
         return test_wv
 
 def test_run():

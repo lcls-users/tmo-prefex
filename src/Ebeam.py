@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from stream import stream
 
 class EbeamConfig(BaseModel):
+    name: str
     l3offset: float = 5100 # int
 
 class EbeamData:
@@ -60,7 +61,7 @@ def run_ebeams(events, ebeams, params) -> Iterator[Optional[Any]]:
             idx = (name, 0)
             out[idx] = EbeamData(params[idx],
                                  eventnum,
-                                 detector.raw.the_ebeam_value(evt))
+                                 detector.raw.ebeamL3Energy(evt)(evt))
             completeEvent = out[idx].ok
             if not completeEvent:
                 break

@@ -26,7 +26,7 @@ class FakeEbeam:
     def __init__(self, en):
         self.en = en
         self.raw = self
-    def the_ebeam_value(self, evt):
+    def ebeamL3Energy(self, evt):
         return self.en
 
 def test_run():
