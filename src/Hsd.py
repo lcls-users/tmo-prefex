@@ -437,7 +437,7 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
     if len(nedges) == 0:
         addresses = np.array([], dtype=np.uint64)
     else:
-        addresses = nedges.cumsum()-nedges[0],
+        addresses = nedges.cumsum()-nedges[0]
     return dict(
         config = waves[0].cfg,
         events = np.array(events, dtype=np.uint32),

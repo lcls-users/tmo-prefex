@@ -13,11 +13,12 @@ import psana
 import numpy as np
 from stream import (
     stream, source, sink,
-    take, Source, takei, seq,
-    chop, map, filter
+    take, Source, takei, seq, gseq,
+    chop, map, filter, takewhile,
 )
 
 from Config import Config
+from stream_utils import variable_chunks
 
 from Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
 from Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
@@ -131,6 +132,9 @@ KeyboardInterrupt
             print(f"Saving config to {cfgname}")
             Config.from_dict(params).save(cfgname, overwrite=True)
 
+        # geometric sequence (1, 2, 4, ..., 512, 1024, 1024, ...)
+        sizes = gseq(2) >> takewhile(lambda x: x<1024)
+        sizes << seq(1024, 0)
         # 2. Assemble the stream to execute
 
         # - Start from a stream of (eventnum, event).
@@ -145,15 +149,21 @@ KeyboardInterrupt
         #   (note: classes test as True)
         s >>= filter(all)
         s >>= map(process_all)
-        # - Now chop the stream into lists of length 100.
-        s >>= chop(100)
+        # - Now chop the stream into lists of length 128.
+        s >>= chop(128)
         # - Now save each grouping as a "Batch".
         s >>= xmap(batch_data, saves)
         # - Now group those by increasing size and concatenate them.
         # - This makes increasingly large groupings of the output data.
         #s >>= chopper([1, 10, 100, 1000]) >> map(concat_batch) # TODO
 
-        # 3. The entire stream "runs" when connected to a sink:
+        # 3. call send_hdf on ea. element passed
+        #s >> tap(send_hdf)
+        # 4. Further combine these into larger and larger
+        #    chunk sizes for saving.
+        s >>= variable_chunks(sizes) >> map(Batch.concat)
+
+        # 5. The entire stream "runs" when connected to a sink:
         s >> write_out(outname)
 
 

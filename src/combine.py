@@ -58,6 +58,7 @@ class Batch(dict):
             'addresses':    ['tofs', 'slopes'],
             'rl_addresses': ['rl_data'],
         }
+        data = [d for d in data if len(d) > 0]
         if len(data) == 0:
             return self
         for idx, det_data in self.items():
@@ -87,10 +88,16 @@ class Batch(dict):
             for k, v in det_data.items():
                 if k in addr_keys:
                     continue
+                if self.dtypes[k] == 'json':
+                    continue
                 det_data[k] = concat([v]+[d[idx][k] for d in data])
 
-
         return self
+
+    @classmethod
+    def concat(cls, x):
+        # FIXME: remove extend in favor of concat...
+        return x[0].extend(*x[1:])
 
     @classmethod
     def from_h5(cls, f):

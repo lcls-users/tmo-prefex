@@ -18,12 +18,9 @@
 host=`hostname`
 export expname=$1
 export runnum=$2
-source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
-. /sdf/home/r/rogersdd/src/tmox1016823/venv/bin/activate
-export scratchpath=/sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/$host
-test -d $scratchpath || mkdir -p $scratchpath
-export nshots=100000
-export configfile=$scratchpath/$expname.hsdconfig.h5
+export nshots=-1
+cd /sdf/home/r/rogersdd/src/tmo-prefex
+source env.sh
 export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
 printf -v runstr "r%04d" $runnum
 
