@@ -15,6 +15,7 @@ class Port:
 
     def __init__(self,portnum,hsd,inflate=1,expand=1,nrollon=256,nrolloff=256,nadcs=4,t0=0,baselim=1<<6,logicthresh=-1*(1<<10)): # expand is for sake of Newton-Raphson
         self.rng = np.random.default_rng( time.time_ns()%(1<<8) )
+        self.sampleEvery = 1000
         self.portnum = portnum
         self.hsd = hsd
         self.t0 = t0
@@ -251,7 +252,6 @@ class Port:
         return self
 
     def process_fex2hits(self,slist,xlist):
-        sampleEvery = 1000
         baseline = 1<<13
         thise = []
         thisde = []
@@ -266,9 +266,12 @@ class Port:
                     #self.set_baseline(quick_mean(s,4))
                     continue
 
-                e,de,ne = cfdLogic(s,thresh=int(-512),offset=2) # scan the logic vector for hits
+                e,de,ne,logic = cfdLogic(s,thresh=int(-512),offset=2) # scan the logic vector for hits
+                r = [0]*len(logic)
+                for ind in e:
+                    r[ind] = 1
 
-                if False and len(self.addresses)%sampleEvery==0:
+                if True and len(self.addresses)%self.sampleEvery==0:
                     self.addsample(r,s,logic)
 
                 start = xlist[i]

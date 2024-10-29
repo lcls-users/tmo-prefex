@@ -57,20 +57,21 @@ def cfdLogic(s,thresh,offset=2):
     slopes = []
     sz = res.shape[0]
     i:int = int(1)
-    while i < sz-1:
+    while i < sz-2:
         while res[i] > thresh:
             i += 1
-            if i==sz-1: return tofs,slopes,len(tofs)
-        while i<sz-1 and res[i]<0:
+            if i==sz-2: return tofs,slopes,len(tofs),res
+        while res[i]<0:
             i += 1
+            if i==sz-2: return tofs,slopes,len(tofs),res
         stop = i
         ''' dx / (Dy) = dx2/dy2 ; dy2*dx/Dy - dx2 ; x2-dx2 = stop - dy2*1/Dy'''
         if stop > 0 and res[stop]>(-1*res[stop-1]):
             stop -= 1
         i += 1
         tofs += [np.uint32(stop)] 
-        slopes += [res[stop]-res[stop-1]] 
-    return tofs,slopes,np.uint16(len(tofs))
+        slopes += [s[stop+2]] #[res[stop]-res[stop-1]] 
+    return tofs,slopes,np.uint16(len(tofs)),res
 
 def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
     sz = s.shape[0]

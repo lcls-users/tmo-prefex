@@ -51,8 +51,8 @@ def main(nshots:int,runnums:List[int]):
     _ = [e.setoffset(params['l3offset']) for e in ebunch]
     '''
     runhsd=True
-    rungmd=False
-    runlcams=False
+    rungmd=True
+    runpiranha=True
     runtiming=False
 
     runvls=False
@@ -139,16 +139,15 @@ def main(nshots:int,runnums:List[int]):
             else:
                 rungmd = False
 
-        print('enable Pirnanha later')
-        """
         for pirname in pirnames[rkey]:
             if runpiranha and pirname in detslist[rkey]:
                 piranhas[rkey].update({pirname:run.Detector(pirname)})
-                spect[rkey].update({pirname:Piranha()})
+                spect[rkey].update({pirname:Spect(thresh=0)})
+                spect[rkey][pirname].set_runkey(rkey).set_name(pirname)
+                if re.search('fzp',pirname):
+                    spect[rkey][pirname].setProcessAlgo('piranha')
         else:
             runpiranha = False
-        """
-
         '''
         print('processing run %i'%rkey)
         if runtiming and '' in runs[r].detnames:
@@ -159,7 +158,7 @@ def main(nshots:int,runnums:List[int]):
         init = True 
         hsdEvents = []
         gmdEvents = []
-        fzpEvents = []
+        spectEvents = []
 
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
 
@@ -169,6 +168,16 @@ def main(nshots:int,runnums:List[int]):
                 break
 
             #test readbacks for each of detectors for given event
+
+
+            ## if failed test of piranha, can't do spectrum correlation
+            if runpiranha and all(completeEvent):
+                if piranhas[rkey] is not None:
+                    for pirname in pirnames[rkey]:
+                        if piranhas[rkey][pirname] is not None:
+                            completeEvent += [spect[rkey][pirname].test(piranhas[rkey][pirname].raw.raw(evt)) ]
+                        else:
+                            completeEvent += [False]
 
             ## if failed test of gmd, then can't normalize, so skip event.
             if rungmd and all(completeEvent):
@@ -208,8 +217,12 @@ def main(nshots:int,runnums:List[int]):
             ############ before processing ##############
             #############################################
 
-            ## process gmds
+            ## process piranhas
+            if runpiranha and all(completeEvents):
+                for pirname in pirnames[rkey]:
+                    spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
 
+            ## process gmds
             if rungmd and all(completeEvent):
                 for gmdname in gmdnames[rkey]:
                     xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))
@@ -247,6 +260,8 @@ def main(nshots:int,runnums:List[int]):
                     hsdEvents += [eventnum]
                 if rungmd:
                     gmdEvents += [eventnum]
+                if runpiranha:
+                    spectEvents += [eventnum]
 
             if init:
                 init = False
@@ -282,6 +297,8 @@ def main(nshots:int,runnums:List[int]):
                         Port.update_h5(f,port,hsdEvents)
                     if rungmd:
                         Gmd.update_h5(f,xray,gmdEvents)
+                    if runpiranha:
+                        Spect.update_h5(f,spect,spectEvents)
 
             elif eventnum>900 and eventnum%1000==0:
                 with h5py.File(outnames[rkey],'w') as f:
@@ -290,6 +307,8 @@ def main(nshots:int,runnums:List[int]):
                         Port.update_h5(f,port,hsdEvents)
                     if rungmd:
                         Gmd.update_h5(f,xray,gmdEvents)
+                    if runpiranha:
+                        Spect.update_h5(f,spect,spectEvents)
 
         # end event loop
 

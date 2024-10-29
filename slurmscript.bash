@@ -21,7 +21,8 @@ fi
 export expname=$1
 export runnum=$2
 export runstr="r$(printf "%04i" $2)"
-export nshots=250000
+export nshots=5000
+#export nshots=250000
 echo "trying to run $expname $runstr $nshots"
 export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
 export finalpath=/sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/$runstr
