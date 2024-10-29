@@ -48,6 +48,85 @@ def parse_params_line(params_line):
     return params_dict
 
 
+def plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
+                                  energy_min, energy_max, bin_width,
+                                  height, distance, prominence,
+                                  t0_energy, offset):
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Colors for plotting
+    colors = plt.cm.viridis(np.linspace(0, 1, len(runs)))
+
+    # For indexing the offset
+    offset_multiplier = 0
+
+    for idx, (run_num, retardation) in enumerate(zip(runs, retardations)):
+        for port in ports:
+            # Get energy data
+            energy_data = energy_data_dict[(run_num, port)]
+
+            # Apply energy range
+            energy_filtered = energy_data[(energy_data >= energy_min) & (energy_data <= energy_max)]
+            if energy_filtered.size == 0:
+                print(f"No data in the specified energy range for run {run_num}, port {port}. Skipping.")
+                continue
+
+            # Compute kinetic energy
+            kinetic_energy = energy_filtered - retardation
+
+            # Create histogram
+            bins = np.arange(energy_min, energy_max + bin_width, bin_width)
+            counts, bin_edges = np.histogram(kinetic_energy, bins=bins)
+
+            # Normalize counts
+            max_count = counts.max()
+            counts = counts / max_count
+
+            # Offset counts if offset is provided
+            if offset is not None:
+                counts = counts + offset * offset_multiplier
+                offset_multiplier += 1
+
+            # Plot histogram
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            ax.plot(bin_centers, counts, drawstyle='steps-mid', label=f'Run {run_num}, Port {port}', color=colors[idx])
+
+            # Find peaks
+            peaks, properties = find_peaks(counts, height=height, distance=distance, prominence=prominence)
+
+            # Mark peaks
+            peak_energies = bin_centers[peaks]
+            peak_counts = counts[peaks]
+            ax.plot(peak_energies, peak_counts, 'x', color='red')
+
+            # Annotate peaks
+            for peak_energy, peak_count in zip(peak_energies, peak_counts):
+                ax.annotate(f'{peak_energy:.2f} eV',
+                            xy=(peak_energy, peak_count),
+                            xytext=(0, 10), textcoords='offset points',
+                            ha='center', va='bottom', fontsize=10, color='red',
+                            rotation=90,
+                            arrowprops=dict(arrowstyle='->', color='red'))
+
+    # Plot t0 energy if provided and within range
+    if t0_energy is not None and energy_min <= t0_energy <= energy_max:
+        ax.axvline(x=t0_energy, color='black', linestyle='-', label='Light Peak')
+        ax.text(t0_energy, ax.get_ylim()[1]*0.9, f'Light Peak at {t0_energy:.2f} eV',
+                rotation=90, verticalalignment='top', horizontalalignment='right', fontsize=12, color='black')
+
+    # Adjust font sizes and labels
+    ax.set_title('Kinetic Energy Histogram with Peaks', fontsize=20)
+    ax.set_xlabel('Kinetic Energy (eV)', fontsize=20)
+    ax.set_ylabel('Normalized Counts', fontsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlim(energy_min, energy_max)
+    ax.legend(fontsize=12)
+
+    plt.tight_layout()
+    return fig
+
+
 def load_energy_data(data_path, run_num, port):
     # Construct file path
     file_path = os.path.join(data_path, f'run{run_num}_converted.h5')
@@ -246,14 +325,21 @@ def main():
     parser.add_argument('--energy_range', nargs=2, type=float, required=True, help='Energy range to plot and find peaks (e.g., 0 300)')
     parser.add_argument('--save_path', type=str, default=None, help='Path to save the PDF file (optional)')
     parser.add_argument('--height', type=float, default=0.1, help='Minimum height of peaks (after normalization, between 0 and 1)')
-    parser.add_argument('--distance', type=float, default=None, help='Minimum distance between peaks in number of bins (optional)')
+    parser.add_argument('--distance', type=float, default=3, help='Minimum distance between peaks in number of bins (optional)')
     parser.add_argument('--prominence', type=float, default=0.05, help='Minimum prominence of peaks (after normalization, between 0 and 1)')
     parser.add_argument('--bin_width', type=float, default=0.5, help='Bin width for histograms (optional, default=1 eV)')
     parser.add_argument('--t0', type=float, default=None, help='t0 value to convert to energy (optional)')
     parser.add_argument('--model_path', type=str, default=None, help='Path to the ML model (required if t0 is specified)')
     parser.add_argument('--scalers_path', type=str, default=None, help='Path to the scalers file (required if t0 is specified)')
     parser.add_argument('--peaks_only', action='store_true', help='If set, only plot peaks without Gaussian fits')
+    parser.add_argument('--kinetic_energy', action='store_true', help='If set, plot kinetic energy histograms of all runs on the same plot')
+    parser.add_argument('--offset', type=float, default=None, help='Offset value to separate the histograms vertically (optional)')
     args = parser.parse_args()
+
+    # Check for incompatible flags
+    if args.peaks_only and args.kinetic_energy:
+        print("Error: Cannot use --peaks_only and --kinetic_energy flags together.")
+        return
 
     # Convert runs, ports, retardations to appropriate types
     runs = [int(run) for run in args.runs]
@@ -298,6 +384,9 @@ def main():
     # Initialize list to collect figures if saving to PDF
     figures = []
 
+    # Dictionary to store energy data for each run and port
+    energy_data_dict = {}
+
     # For each run and port
     for run_idx, run_num in enumerate(runs):
         retardation = retardations[run_idx]
@@ -308,34 +397,64 @@ def main():
                 print(f"No data found for run {run_num}, port {port}. Skipping.")
                 continue
 
-            # Apply energy range
-            energy_filtered = energy_data[(energy_data >= energy_min) & (energy_data <= energy_max)]
-            if energy_filtered.size == 0:
-                print(f"No data in the specified energy range for run {run_num}, port {port}. Skipping.")
-                continue
+            # Store energy data
+            energy_data_dict[(run_num, port)] = energy_data
 
-            # Convert t0 to energy for the current run and retardation
-            if args.t0 is not None and main_model is not None:
-                t0_energy = convert_t0_to_energy(args.t0, retardation, main_model)
-                print(f"Converted t0 ({args.t0}) to energy: {t0_energy:.2f} eV for run {run_num}")
-            else:
-                t0_energy = None
+    # If kinetic_energy flag is set, use KE plotting
+    if args.kinetic_energy:
+        # Convert t0 to energy for the first run and retardation (if t0 is provided)
+        if args.t0 is not None and main_model is not None:
+            t0_energy = convert_t0_to_energy(args.t0, retardations[0], main_model)
+            print(f"Converted t0 ({args.t0}) to energy: {t0_energy:.2f} eV for run {runs[0]}")
+        else:
+            t0_energy = None
 
-            # Plot histogram and find peaks
-            if args.peaks_only:
-                fig = plot_histogram_with_peaks(energy_filtered, run_num, port, retardation,
-                                                energy_min, energy_max, bin_width,
-                                                height, distance, prominence,
-                                                t0_energy)
-            else:
-                fig = plot_histogram_with_peaks_and_fits(energy_filtered, run_num, port, retardation,
-                                                         energy_min, energy_max, bin_width,
-                                                         height, distance, prominence,
-                                                         t0_energy)
-            if args.save_path:
-                figures.append(fig)
-            else:
-                plt.show()
+        fig = plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
+                                            energy_min, energy_max, bin_width,
+                                            height, distance, prominence,
+                                            t0_energy, args.offset)
+        if args.save_path:
+            figures.append(fig)
+        else:
+            plt.show()
+
+    else:
+        # Proceed with the original plotting functions
+        for run_idx, run_num in enumerate(runs):
+            retardation = retardations[run_idx]
+            for port in ports:
+                energy_data = energy_data_dict.get((run_num, port))
+                if energy_data is None:
+                    continue
+
+                # Apply energy range
+                energy_filtered = energy_data[(energy_data >= energy_min) & (energy_data <= energy_max)]
+                if energy_filtered.size == 0:
+                    print(f"No data in the specified energy range for run {run_num}, port {port}. Skipping.")
+                    continue
+
+                # Convert t0 to energy for the current run and retardation
+                if args.t0 is not None and main_model is not None:
+                    t0_energy = convert_t0_to_energy(args.t0, retardation, main_model)
+                    print(f"Converted t0 ({args.t0}) to energy: {t0_energy:.2f} eV for run {run_num}")
+                else:
+                    t0_energy = None
+
+                # Plot histogram and find peaks
+                if args.peaks_only:
+                    fig = plot_histogram_with_peaks(energy_filtered, run_num, port, retardation,
+                                                    energy_min, energy_max, bin_width,
+                                                    height, distance, prominence,
+                                                    t0_energy)
+                else:
+                    fig = plot_histogram_with_peaks_and_fits(energy_filtered, run_num, port, retardation,
+                                                             energy_min, energy_max, bin_width,
+                                                             height, distance, prominence,
+                                                             t0_energy)
+                if args.save_path:
+                    figures.append(fig)
+                else:
+                    plt.show()
 
     # Save all figures to PDF if save_path is specified
     if args.save_path and figures:
@@ -348,4 +467,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
