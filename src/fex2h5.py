@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import re
 import os
-import socket
 
 import h5py
 import psana
@@ -53,7 +52,7 @@ def run_events(run, start_event=0):
 @sink
 def write_out(inp: Iterator[Batch], outname: str) -> None:
     for i, batch in enumerate(inp):
-        name = outname[:-2] + f"{i}.h5"
+        name = f"{outname}.{i}.h5"
         print('writing batch %i to %s'%(i,name))
         with h5py.File(name,'w') as f:
             batch.write_h5(f)
@@ -65,6 +64,29 @@ def process_all(tps):
             if w != v:
                 print(f"{dtype} - incorrect return from process()")
     return tps
+
+@stream
+def live_events(events, max_consecutive=100):
+    errs = []
+    consecutive = 0
+    for ev,dets in enumerate(events):
+        failed = [i for i,d in enumerate(dets) if d is None]
+        if len(failed) == 0:
+            yield dets
+            consecutive = 0
+            continue
+
+        consecutive += 1
+        errs.append(failed)
+        if consecutive >= max_consecutive:
+            break
+    
+    if consecutive >= max_consecutive:
+        print(f"Stopping early at event {ev} after {consecutive} errors")
+        print("Failed detector list:")
+        for e in errs:
+            print(errs[-consecutive:])
+    print(f"Processed {ev} events with {len(errs)} dropped.")
 
 def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
     #######################
@@ -80,9 +102,7 @@ def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
         #cfg = Config()
     params = cfg.to_dict()
 
-    #enabled_detectors = ['hsd', 'gmd', 'spect']
-    # note: most spect results are None - likely because vlsthresh is 1000
-    enabled_detectors = ['hsd', 'gmd']
+    enabled_detectors = ['hsd', 'ebeam', 'gmd', 'spect']
     assert len(enabled_detectors) > 0, "No detectors enabled!"
     # ['spect', 'ebeam', 'lcams', 'timing', 'xtcav']
     # note: rename vls <-> spect
@@ -116,7 +136,7 @@ KeyboardInterrupt
     ds = psana.DataSource(exp=expname,run=runnums)
     for i in range(len(runnums)):
         run = next(ds.runs()) # don't call next unless you know it's there...
-        outname = '%s/hits.%s.run_%03i.h5'%(scratchdir,expname,run.runnum)
+        outname = '%s/hits.%s.run_%03i'%(scratchdir,expname,run.runnum)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
@@ -147,7 +167,7 @@ KeyboardInterrupt
         s >>= split(*runs)
         # - but don't pass items that contain any None-s.
         #   (note: classes test as True)
-        s >>= filter(all)
+        s >>= live_events()
         s >>= map(process_all)
         # - Now chop the stream into lists of length 128.
         s >>= chop(128)
@@ -175,7 +195,7 @@ if __name__ == '__main__':
         expname = sys.argv[2]
         runnums = [int(r) for r in list(sys.argv[3:])]
         print('Before finalizing, clean up to point to common area for output .h5')
-        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files/%s'%(expname,os.environ.get('USER'),socket.gethostname())
+        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files'%(expname,os.environ.get('USER'))
         if not os.path.exists(scratchdir):
             os.makedirs(scratchdir)
         main(nshots,expname,runnums,scratchdir)

@@ -87,13 +87,13 @@ class SpectData:
         self.v = (wv-mean).astype(np.int16, copy=True)
 
     def process(self):
-        if wv.max() < cfg.vlsthresh:
+        cfg = self.cfg
+        if self.v.max() < cfg.vlsthresh:
             self.vsize = len(self.v)
             self.vc = None
             self.vs = None
-            return
+            return self
             #print('Minnow, not a Piranha!')
-        cfg = self.cfg
         c,s = getCentroid(self.v[cfg.winstart:cfg.winstop], pct=0.8)
 
         self.vsize = len(self.v)

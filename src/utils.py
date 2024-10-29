@@ -69,6 +69,8 @@ def cfdLogic(s,thresh,offset=2):
             stop -= 1
         i += 1
         tofs += [np.uint32(stop)] 
+        # Note: this has thrown an error when difference exceeds
+        # int16 range, [-32768, 32767]
         slopes += [res[stop]-res[stop-1]] 
     return tofs,slopes,np.uint16(len(tofs))
 
