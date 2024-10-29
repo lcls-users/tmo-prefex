@@ -78,13 +78,21 @@ class SpectData:
         except:
             print('Damnit, Piranha!')
             return
-        if (wv.max() - mean) < cfg.vlsthresh:
-            #print('Minnow, not a Piranha!')
-            return
         self.ok = True
+        # Note: we not checking the vlsthresh at this point,
+        # since we want the event to pass (just no spectral peak).
+        #if (wv.max() - mean) < cfg.vlsthresh:
+        #    #print('Minnow, not a Piranha!')
+        #    return
         self.v = (wv-mean).astype(np.int16, copy=True)
 
     def process(self):
+        if wv.max() < cfg.vlsthresh:
+            self.vsize = len(self.v)
+            self.vc = None
+            self.vs = None
+            return
+            #print('Minnow, not a Piranha!')
         cfg = self.cfg
         c,s = getCentroid(self.v[cfg.winstart:cfg.winstop], pct=0.8)
 
@@ -116,11 +124,12 @@ def run_spects(events, spects, params) -> Iterator[Optional[Dict[str,Any]]]:
 def save_spect(data: List[SpectData]) -> Dict[str,Any]:
     if len(data) == 0:
         return {}
+    d1 = [x for x in data if x.vc is not None]
     return dict(
         config = data[0].cfg,
-        events = np.array([x.event for x in data], dtype=np.uint32),
-        centroids = np.array([x.vc for x in data], dtype=np.float16),
-        vsum = np.array([x.vs for x in data], dtype=np.uint64),
-        vsize = np.array([x.vsize for x in data], dtype=np.int32),
+        events = np.array([x.event for x in d1], dtype=np.uint32),
+        centroids = np.array([x.vc for x in d1], dtype=np.float16),
+        vsum = np.array([x.vs for x in d1], dtype=np.uint64),
+        vsize = np.array([x.vsize for x in d1], dtype=np.int32),
         # capture any raw x.v?
     )

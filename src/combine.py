@@ -18,6 +18,10 @@ def load_data(cfg, data) -> Dict[str,np.ndarray]:
         ret[name] = data[name][()]
     return ret
 
+# FIXME: should we add a runstr as top-level hdf5 group?
+def get_runstr(self):
+    return 'run_%04i'%self.runkey
+
 class Batch(dict):
     """ Class to hold and concatenate a dict-of-dict-of (h5-like dicts)
         as produced by save_batch.

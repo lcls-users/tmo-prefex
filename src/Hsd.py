@@ -30,7 +30,7 @@ class HsdConfig(BaseModel):
     name: str
     inflate: int = 1 # inflate pads the DCT(FFT) with zeros, artificially over sampling the waveform
     expand: int = 1  # expand controls the fractional resolution for scanedges by scaling index values and then zero crossing round to intermediate integers.
-    logic_thresh: int = -1*(1<<20) # was logicthresh
+    logic_thresh: int = -1*(1<<10) # was logicthresh
     roll_on: int = 256
     roll_off: int = 256
     nadcs: int = 4
@@ -123,7 +123,6 @@ default_wave = HsdConfig(
     name = '',
     inflate = 2,
     expand = 4,
-    logic_thresh = 18000,
     roll_on = 1<<6,
     roll_off = 1<<6,
 )
@@ -136,7 +135,6 @@ default_fex = HsdConfig(
     name = '',
     inflate = 2,
     expand = 4,
-    logic_thresh = 18000,
 )
 
 
@@ -273,11 +271,12 @@ class FexData(HsdData):
         nwins = len(peak[0])
         baseline = 0
         if nwins > 2: # always reports the start of and the end of the fex active window.
-            baseline = np.sum(peak[1][0].astype(np.uint32))
-            baseline //= len(peak[1][0])
+            #baseline = np.sum(peak[1][0].astype(np.uint32))
+            #baseline //= len(peak[1][0])
+            baseline = peak[1][0].mean() # avoid int. overflow
             xlist.extend(peak[0][1:nwins-2])
             for i in range(1,nwins-2):
-                #xlist += [ peak[0][i] ]
+                #xlist += [ peak[0][i] ] # used extend, above.
                 slist += [np.array(peak[1][i], dtype=np.int32)]
 
         self.xlist = xlist
