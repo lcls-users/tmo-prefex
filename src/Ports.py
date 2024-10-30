@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.fftpack import dct,dst,rfft,irfft,fft,ifft
-from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean,cfdLogic,fftLogic_fex,fftLogic,fftLogic_f16
+from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean,cfdLogic,cfdLogic_mod,fftLogic_fex,fftLogic,fftLogic_f16
 import h5py
 import time
 from typing import Type,List
@@ -266,15 +266,16 @@ class Port:
                     #self.set_baseline(quick_mean(s,4))
                     continue
 
-                e,de,ne,logic = cfdLogic(s,thresh=int(-512),offset=2) # scan the logic vector for hits
-                r = [0]*len(logic)
+                expandBits = 1
+                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-512),offset=2,expandBits=expandBits) # scan the logic vector for hits
+                r = [0]*(len(logic)<<expandBits)
                 for ind in e:
                     r[ind] = 1
 
                 if True and len(self.addresses)%self.sampleEvery==0:
                     self.addsample(r,s,logic)
 
-                start = xlist[i]
+                start = xlist[i]<<expandBits
                 thise += [start+v for v in e] 
                 thisde += [d for d in de]
 

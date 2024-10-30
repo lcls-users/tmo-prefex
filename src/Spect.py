@@ -142,7 +142,11 @@ class Spect:
         sumy:np.uint32 = sum(signal) - base*sz
         cent:np.uint16 = sumiy//sumy
         sumi2y:np.int32 = sum([(abs(int(i)-int(cent))**2)*(d-base) for i,d in enumerate(signal) if d>(base+self.thresh)])# - base*(n*(n-1)*(2*(n-1)+1))//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
-        width:np.uint16 = math.isqrt(sumi2y//sumy)
+        width:np.uint16 = np.uint16(0)
+        if sumi2y>0 and sumy>0:
+            width:np.uint16 = math.isqrt(sumi2y//sumy)
+        else:
+            width = 1<<7
         #print(cent,width,cent-width,cent+width)
         self.winstart = cent - (width)
         self.winstop = cent + (width)

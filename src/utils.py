@@ -44,7 +44,8 @@ def quick_mean(lints,baseshift=2):
 indx=0
 ## Various logic wave scanners
 def cfdLogic(s,thresh,offset=2):
-    res = (np.array(s).astype(np.int16) - np.roll(s,-offset).astype(np.int16))
+    res = np.array(s).astype(np.int16) - (1<<14)
+    #res = (np.array(s).astype(np.int16) - np.roll(s,-offset).astype(np.int16))
     '''
     global indx 
     indx += 1
@@ -71,6 +72,39 @@ def cfdLogic(s,thresh,offset=2):
         i += 1
         tofs += [np.uint32(stop)] 
         slopes += [s[stop+2]] #[res[stop]-res[stop-1]] 
+    return tofs,slopes,np.uint16(len(tofs)),res
+
+def cfdLogic_mod(s,thresh,offset=2,expandBits=2):
+    res = (np.roll(s,offset>>1).astype(np.int32) - np.roll(s,-(offset>>1)).astype(np.int32))
+    res *= np.array(s).astype(np.int32)-(1<<14)
+    res >>= 12 
+    '''
+    global indx 
+    indx += 1
+    if indx%1<<10==0:
+        indx = 0
+        plt.plot(res)
+        plt.show()
+        '''
+    tofs = []
+    slopes = []
+    sz = res.shape[0]
+    i:int = int(1)
+    while i < sz-2:
+        while res[i] > thresh:
+            i += 1
+            if i==sz-2: return tofs,slopes,len(tofs),res
+        while res[i]<0:
+            i += 1
+            if i==sz-2: return tofs,slopes,len(tofs),res
+        stop = i
+        ''' dx / (Dy) = dx2/dy2 ; dy2*dx/Dy - dx2 ; x2-dx2 = stop - dy2*1/Dy'''
+        mod_stop = i
+        if stop > 0:
+            mod_stop = (res[stop]*((stop-1)<<expandBits)+abs(res[stop-1])*(stop<<expandBits))//(abs(res[stop-1])+res[stop])
+        i += 1
+        tofs += [np.uint32(mod_stop)] 
+        slopes += [res[stop]-res[stop-1]] 
     return tofs,slopes,np.uint16(len(tofs)),res
 
 def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
