@@ -142,12 +142,12 @@ def main(nshots:int,runnums:List[int]):
         for pirname in pirnames[rkey]:
             if runpiranha and pirname in detslist[rkey]:
                 piranhas[rkey].update({pirname:run.Detector(pirname)})
-                spect[rkey].update({pirname:Spect(thresh=0)})
+                spect[rkey].update({pirname:Spect(thresh=(1<<3))})
                 spect[rkey][pirname].set_runkey(rkey).set_name(pirname)
                 if re.search('fzp',pirname):
                     spect[rkey][pirname].setProcessAlgo('piranha')
-        else:
-            runpiranha = False
+            else:
+                runpiranha = False
         '''
         print('processing run %i'%rkey)
         if runtiming and '' in runs[r].detnames:
@@ -168,7 +168,6 @@ def main(nshots:int,runnums:List[int]):
                 break
 
             #test readbacks for each of detectors for given event
-
 
             ## if failed test of piranha, can't do spectrum correlation
             if runpiranha and all(completeEvent):
@@ -218,7 +217,7 @@ def main(nshots:int,runnums:List[int]):
             #############################################
 
             ## process piranhas
-            if runpiranha and all(completeEvents):
+            if runpiranha and all(completeEvent):
                 for pirname in pirnames[rkey]:
                     spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
 

@@ -214,6 +214,16 @@ def getcentroid(inds,spec):
         return int(num/denom)
     return 0
 
+def getCentroid(data,pct=.8):
+    csum = np.cumsum(data.astype(float))
+    s = float(csum[-1])*pct
+    csum /= csum[-1]
+    inds = np.where((csum>(.5-pct/2.))*(csum<(.5+pct/2.)))
+    tmp = np.zeros(data.shape,dtype=float)
+    tmp[inds] = data[inds].astype(float)
+    num = np.sum(tmp*np.arange(data.shape[0],dtype=float))
+    return (num/s,np.uint64(s))
+
 def makehist(fname,bins=(np.arange(2**10+1)-2**9)*2**10):
     with h5py.File(fname,'r') as f:
         for p in f.keys():

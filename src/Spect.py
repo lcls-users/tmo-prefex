@@ -5,6 +5,7 @@ import h5py
 import sys
 import math
 import statistics as stats
+from utils import getCentroid
 
 def quickCentroid(data):
     sz = len(data)
@@ -12,16 +13,6 @@ def quickCentroid(data):
     num:np.uint32 = sum([i*d for d in data]) - base*((sz)*(sz-1))>>1
     den:np.uint32 = sum(data) - base*sz
     return (np.uint16(num//den),np.uint32(num))
-
-def getCentroid(data,pct=.8):
-    csum = np.cumsum(data.astype(float))
-    s = float(csum[-1])*pct
-    csum /= csum[-1]
-    inds = np.where((csum>(.5-pct/2.))*(csum<(.5+pct/2.)))
-    tmp = np.zeros(data.shape,dtype=float)
-    tmp[inds] = data[inds].astype(float)
-    num = np.sum(tmp*np.arange(data.shape[0],dtype=float))
-    return (num/s,np.uint64(s))
 
 def shouldSplit(data):
     inds = np.arange(data.shape[0])
@@ -38,14 +29,16 @@ def getSplit(data):
     return index
 
 class Spect:
-    def __init__(self,thresh=0) -> None:
+    def __init__(self,thresh=(1<<3)) -> None:
         self.v = []
         self.vsize = int(0)
         self.vc = []
         self.vs = []
         self.vw = []
+        self.vstarts = []
+        self.vlens = []
         self.initState = True
-        self.vlsthresh = thresh
+        self.thresh = thresh
         self.winstart = 0
         self.winstop = 1<<11
         self.processAlgo = 'piranha'
@@ -53,6 +46,8 @@ class Spect:
 
     @classmethod
     def slim_update_h5(cls,f,spect,vlsEvents):
+        print('slim_update() not yet implemented')
+        '''
         grpvls = None
         if 'spect' in f.keys():
             grpvls = f['spect']
@@ -64,6 +59,7 @@ class Spect:
         grpvls.create_dataset('width',data=spect.vw,dtype=np.uint32)
         grpvls.attrs.create('size',data=spect.vsize,dtype=np.int32)
         grpvls.create_dataset('events',data=vlsEvents)
+        '''
         return 
 
     @classmethod
@@ -77,13 +73,15 @@ class Spect:
                 if rstr not in f.keys():
                     f.create_group(rstr)
                 if name not in f[rstr].keys():
-                    f.create_group('spect')
+                    f[rstr].create_group(name)
                 grpspc = f[rstr][name]
-                spcdata = grpspc.create_dataset('data',data=spect.v,dtype=int)
-                grpspc.create_dataset('centroids',data=spect.vc,dtype=np.uint16)
-                grpspc.create_dataset('sum',data=spect.vs,dtype=np.uint64)
-                grpspc.create_dataset('width',data=spect.vw,dtype=np.uint16)
-                grpspc.attrs.create('size',data=spect.vsize,dtype=np.int32)
+                grpspc.create_dataset('data',data=spect[rkey][name].v,dtype=np.uint16)
+                grpspc.create_dataset('starts',data=spect[rkey][name].vstarts,dtype=np.uint32)
+                grpspc.create_dataset('lens',data=spect[rkey][name].vlens,dtype=np.uint16)
+                grpspc.create_dataset('centroids',data=spect[rkey][name].vc,dtype=np.uint16)
+                grpspc.create_dataset('sum',data=spect[rkey][name].vs,dtype=np.uint64)
+                grpspc.create_dataset('widths',data=spect[rkey][name].vw,dtype=np.uint16)
+                grpspc.attrs.create('size',data=spect[rkey][name].vsize,dtype=np.int32)
                 grpspc.create_dataset('events',data=spcEvents)
         return
 
@@ -105,7 +103,7 @@ class Spect:
         return self
 
     def setthresh(self,x):
-        self.vlsthresh = x
+        self.thresh = x
         return self
 
     def setwin(self,low,high):
@@ -123,59 +121,71 @@ class Spect:
             print('Damnit, Piranha!')
             return False
         else:
-            if (np.max(wv)-mean)<self.vlsthresh:
+            if (np.max(wv)-mean)<self.thresh:
                 #print('Minnow, not a Piranha!')
                 return False
         return True
 
 
     def process(self,s):
-        if self.processAlgo=='prianha':
-            return self.process_piranha(s)
-        else:
+        if self.processAlgo != 'piranha':
             return self.process_vls(s)
+        return self.process_piranha(s)
 
 
-    def process_piranha(self,s):
-        sz = len(s)
-        base:np.uint32 = stats.mode(s)
-        sumi2y:np.uint32 = sum([i*i*d for d in s]) - base*(n*(n-1)*(2*(n-1)+1))//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
-        sumiy:np.uint32 = sum([i*d for d in s]) - base*(sz*(sz-1))>>1
-        sumy:np.uint32 = sum(s) - base*sz
-        c = sumiy/sumy
-        w = math.sqrt(sumi2y)
+    def process_piranha(self,signal):
+        sz = len(signal)
+        base:np.uint32 = stats.mode(signal)
+        #sumi2y:np.uint32 = sum([i*i*d for d in s]) - base*(n*(n-1)*(2*(n-1)+1))//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
+        sumiy:np.uint32 = sum([i*(int(d)-int(base)) for i,d in enumerate(signal)])# - base*(sz*(sz-1))>>1
+        #sumiy:np.uint32 = sum([i*d for d in s]) - base*(sz*(sz-1))>>1
+        sumy:np.uint32 = sum(signal) - base*sz
+        cent:np.uint16 = sumiy//sumy
+        sumi2y:np.int32 = sum([(abs(int(i)-int(cent))**2)*(d-base) for i,d in enumerate(signal) if d>(base+self.thresh)])# - base*(n*(n-1)*(2*(n-1)+1))//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
+        width:np.uint16 = math.isqrt(sumi2y//sumy)
+        #print(cent,width,cent-width,cent+width)
+        self.winstart = cent - (width)
+        self.winstop = cent + (width)
+        if cent<width:
+            self.winstart = 0
+        if self.winstop > (sz-1):
+            self.winstop = sz
+
         if self.initState:
-            self.vsize = len(s)
-            self.v = [v for v in s]
-            self.vc = [np.uint16(c)]
-            self.vs = [np.uint64(s)]
-            self.vw = [np.uint16(w)]
+            self.v = [v for v in signal[self.winstart:self.winstop]]
+            self.vstarts = [len(self.v)]
+            self.vlens = [self.winstop-self.winstart]
+            self.vc = [np.uint16(cent)]
+            self.vs = [np.uint64(sumy)]
+            self.vw = [np.uint16(width)]
             self.initState = False
         else:
-            self.v += [v for v in s]
-            self.vc += [np.uint16(c)]
-            self.vs += [np.uint64(s)]
-            self.vw += [np.uint16(w)]
+            self.v += [v for v in signal[self.winstart:self.winstop]]
+            self.vstarts += [len(self.v)]
+            self.vlens += [self.winstop-self.winstart]
+            self.vc += [np.uint16(cent)]
+            self.vs += [np.uint64(sumy)]
+            self.vw += [np.uint16(width)]
 
         return True
 
     def process_vls(self, wv):
         mean = np.int16(np.mean(wv[1800:])) # this subtracts baseline
-        if (np.max(wv)-mean)<self.vlsthresh:
+        if (np.max(wv)-mean)<self.thresh:
             return False
         d = np.copy(wv-mean).astype(np.int16)
-        c,s = getCentroid(d[self.winstart:self.winstop],pct=0.8)
+        cent,sumy = getCentroid(d[self.winstart:self.winstop],pct=0.8)
         if self.initState:
-            self.v = [d]
+            self.v = [v for v in d]
             self.vsize = len(self.v)
             self.vc = [np.uint16(c)]
-            self.vs = [np.uint64(s)]
+            self.vs = [np.uint64(sumy)]
             self.vw = [np.uint16(self.winstop-self.winstart)]
             self.initState = False
         else:
-            self.v += [d]
+            self.v += [v for v in d]
             self.vc += [np.uint16(c)]
-            self.vs += [np.uint64(s)]
+            self.vs += [np.uint64(sumy)]
             self.vw += [np.uint16(self.winstop-self.winstart)]
         return True
 
