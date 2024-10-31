@@ -1,10 +1,9 @@
 #!/usr/bin/bash
 # assume 5 hours for each run of about 50k shots
-
 #SBATCH --partition=roma
 #SBATCH --job-name=fex2h5
-#SBATCH --output=../%j.stdout
-#SBATCH --error=../%j.stderr
+#SBATCH --output=%x-%j.stdout
+#SBATCH --error=%x-%j.stderr
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=3g
@@ -22,5 +21,8 @@ nshots=-1
 
 BASE=/sdf/home/r/rogersdd/src/tmo-prefex
 #srun -n1 -c64 parallel ./process.sh $nshots $expname ::: `seq 31 94`
+
+# Note: can use parallel if you ask for lots of CPU-s
 #ssh $SLURM_NODELIST $PARALLEL $BASE/process.sh $nshots $expname ::: `seq 31 94`
+
 ssh $SLURM_NODELIST $BASE/process.sh $nshots $expname $@
