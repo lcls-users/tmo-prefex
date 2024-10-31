@@ -28,8 +28,8 @@ def load_data(run_num, port, t0, data_path):
         if dataset_name not in hf:
             print(f"Dataset '{dataset_name}' not found in HDF5 file.")
             return None
-        tof_data = hf[dataset_name][()]
-        tof_data = tof_data - t0  # Subtract t0
+        tof_data = hf.get(dataset_name)
+        tof_data = tof_data - (t0 - 2e-9)  # Subtract t0
         tof_data = tof_data[tof_data > 0]  # Keep only positive TOF values
         return tof_data
 
@@ -37,7 +37,7 @@ def load_data(run_num, port, t0, data_path):
 def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path):
     """Process data, find peaks, and plot spectra with offset."""
     # Data path (adjust if necessary)
-    data_path = '/path/to/your/data'  # Replace with the actual path to your data
+    data_path = '/sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/preproc/v2'  # Replace with the actual path to your data
 
     # Create figure
     plt.figure(figsize=(10, 6))
