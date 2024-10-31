@@ -1,14 +1,10 @@
 
 from pathlib import Path
-import sys
-sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-here = Path(__file__).absolute().parent
-sys.path.append(str(here.parent / "src"))
 
 import numpy as np
 import h5py
 
-from combine import Batch
+from tmo_prefex.combine import Batch
 
 def test_batch():
     with h5py.File(here/"test1.h5") as f:

@@ -1,11 +1,8 @@
 from pathlib import Path
-import sys
-sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-sys.path.append( str(Path(__file__).absolute().parent.parent / "src" ))
 
 import numpy as np
 
-from Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
+from tmo_prefex.Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
 
 def test_config():
     x = EbeamConfig(name='zeebeam', l3offset=1234)

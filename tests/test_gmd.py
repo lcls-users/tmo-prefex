@@ -1,11 +1,8 @@
 from pathlib import Path
-import sys
-sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-sys.path.append( str(Path(__file__).absolute().parent.parent / "src" ))
 
 import numpy as np
 
-from Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
+from tmo_prefex.Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
 
 def test_config():
     x = GmdConfig(name='xgmd', unit='0.1uJ', scale=1000)

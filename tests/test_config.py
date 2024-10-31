@@ -1,11 +1,8 @@
 from pathlib import Path
-import sys
-sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-sys.path.append( str(Path(__file__).absolute().parent.parent / "src" ))
 
 import yaml
 
-from Config import Config
+from tmo_prefex.Config import Config
 
 example_config = """
 detectors:

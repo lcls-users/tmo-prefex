@@ -1,13 +1,10 @@
 from pathlib import Path
-import sys
-sys.path = [p for p in sys.path if 'HydraGNN' not in p]
-sys.path.append( str(Path(__file__).absolute().parent.parent / "src" ))
 
 import pytest
 from pydantic import ValidationError
 import numpy as np
 
-from Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
+from tmo_prefex.Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
 
 def test_config():
     x = SpectConfig(name='z_piranha', vlsthresh=1000)
