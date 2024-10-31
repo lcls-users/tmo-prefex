@@ -24,7 +24,7 @@ def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distanc
         ports (list): List of ports.
         t0s (list): List of t0 values corresponding to each port.
         retardation (float): Retardation value.
-        window_range (tuple): Window range for plotting and peak finding.
+        window_range (tuple or None): Window range for plotting and peak finding.
         height (float): Minimum height of peaks (after normalization).
         distance (float): Minimum distance between peaks in number of bins.
         prominence (float): Minimum prominence of peaks (after normalization).
@@ -34,6 +34,8 @@ def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distanc
         save_path (str): Path to save the plot.
         main_model: Pre-loaded ML model for energy conversion.
     """
+    import matplotlib.pyplot as plt
+    from scipy.signal import find_peaks
 
     # Create figure
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -89,15 +91,23 @@ def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distanc
                 data = tof_data * 1e6  # Convert to microseconds for plotting
                 xlabel = 'Time of Flight (µs)'
 
+            # Determine window range if not specified
+            if window_range is None:
+                data_min = data.min()
+                data_max = data.max()
+                window_range_port = (0, data_max)
+            else:
+                window_range_port = window_range
+
             # Apply window range
-            data = data[(data >= window_range[0]) & (data <= window_range[1])]
+            data = data[(data >= window_range_port[0]) & (data <= window_range_port[1])]
 
             if data.size == 0:
                 print(f"No data in the specified window range for port {port}.")
                 continue
 
             # Create histogram
-            bins = np.arange(window_range[0], window_range[1] + bin_width, bin_width)
+            bins = np.arange(window_range_port[0], window_range_port[1] + bin_width, bin_width)
             counts, bin_edges = np.histogram(data, bins=bins)
 
             # Normalize counts
@@ -155,7 +165,7 @@ def main():
     parser.add_argument('--retardation', type=float, required=True, help='Retardation value for the run.')
     parser.add_argument('--ports', nargs='+', type=int, required=True, help='List of ports (e.g., 0 1 2)')
     parser.add_argument('--t0s', nargs='+', type=float, required=True, help='List of t0 values for each port.')
-    parser.add_argument('--window_range', nargs=2, type=float, required=True, help='Window range for plotting and peak finding (e.g., 0 300). If --energy is passed, this is in energy units.')
+    parser.add_argument('--window_range', nargs=2, type=float, default=None, help='Window range for plotting and peak finding (e.g., 0 300). If --energy is passed, this is in energy units. If not specified, plots the full spectrum starting from 0.')
     parser.add_argument('--height', type=float, default=0.1, help='Minimum height of peaks (after normalization, between 0 and 1)')
     parser.add_argument('--distance', type=float, default=None, help='Minimum distance between peaks in number of bins (optional)')
     parser.add_argument('--prominence', type=float, default=0.05, help='Minimum prominence of peaks (after normalization, between 0 and 1)')
@@ -189,13 +199,19 @@ def main():
     else:
         main_model = None
 
+    # Convert window_range to tuple if provided
+    if args.window_range is not None:
+        window_range = tuple(args.window_range)
+    else:
+        window_range = None  # Indicates that full spectrum should be plotted starting from 0
+
     # Call the function to process data and plot
     plot_spectra(
         run_num=args.run_num,
         ports=args.ports,
         t0s=args.t0s,
         retardation=args.retardation,
-        window_range=args.window_range,
+        window_range=window_range,
         height=args.height,
         distance=args.distance,
         prominence=args.prominence,
