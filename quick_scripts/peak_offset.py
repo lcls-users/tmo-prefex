@@ -9,89 +9,11 @@ import sys
 import tensorflow as tf
 import pickle
 from scipy.signal import find_peaks
-
 # Add the path to your custom model modules if needed
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
+from convert_spectrum import convert_tof_to_energy, load_scalers, parse_params_line
 
-def load_scalers(scalers_path):
-    """Load scalers from the specified path."""
-    if os.path.exists(scalers_path):
-        with open(scalers_path, 'rb') as f:
-            scalers = pickle.load(f)
-            min_values = scalers['min_values']
-            max_values = scalers['max_values']
-            print(f"Scalers loaded from {scalers_path}")
-            return min_values, max_values
-    else:
-        raise FileNotFoundError(f"Scalers file not found at {scalers_path}")
-
-def parse_params_line(params_line):
-    """Parses a params line into a dictionary."""
-    params_dict = {}
-    if params_line:
-        params_list = params_line.strip().split()
-        for param in params_list:
-            if param.startswith('--'):
-                key_value = param[2:].split('=')
-                if len(key_value) == 2:
-                    key, value = key_value
-                    params_dict[key] = value
-    return params_dict
-
-def convert_tof_to_energy(tof_array, retardation, batch_size=1024, main_model=None):
-    """
-    Converts a TOF array (with t0 already subtracted) to an energy spectrum.
-
-    Parameters:
-        tof_array (np.ndarray): Input time-of-flight array (t0 already subtracted).
-        retardation (float): Retardation value.
-        batch_size (int): Batch size for processing data.
-        main_model: Pre-loaded ML model for conversion.
-
-    Returns:
-        energy_spectrum (np.ndarray): Output energy spectrum.
-    """
-    if main_model is None:
-        raise ValueError("Main model must be provided for energy conversion.")
-
-    # Initialize list to store predictions
-    all_predictions = []
-
-    # Total number of samples
-    total_length = len(tof_array)
-    print(f"Processing TOF array with {total_length} samples.")
-
-    # Process data in batches
-    for i in range(0, total_length, batch_size):
-        # Extract batch
-        tof_batch = tof_array[i:i+batch_size]
-
-        # Keep only positive TOF values
-        hist_t0 = tof_batch[tof_batch > 0] * 1e6  # Convert to microseconds
-        if hist_t0.size == 0:
-            continue
-
-        # Prepare input array
-        retardation_col = np.full_like(hist_t0, retardation)
-        mid1_ratio_col = np.full_like(hist_t0, 0.11248)  # Placeholder values
-        mid2_ratio_col = np.full_like(hist_t0, 0.1354)   # Placeholder values
-        input_array = np.column_stack([retardation_col, mid1_ratio_col, mid2_ratio_col, hist_t0]).astype(np.float32)
-
-        # Make predictions
-        y_pred_batch = main_model.predict(input_array, batch_size=batch_size).flatten()
-        y_pred_conv_batch = 2 ** y_pred_batch  # Apply inverse log transformation
-
-        # Store predictions
-        all_predictions.append(y_pred_conv_batch)
-
-    # Concatenate all predictions
-    if all_predictions:
-        energy_spectrum = np.concatenate(all_predictions)
-    else:
-        energy_spectrum = np.array([])  # Return empty array if no predictions
-
-    return energy_spectrum
 
 def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path, main_model):
     """
@@ -112,8 +34,6 @@ def plot_spectra(run_num, ports, t0s, retardation, window_range, height, distanc
         save_path (str): Path to save the plot.
         main_model: Pre-loaded ML model for energy conversion.
     """
-    import matplotlib.pyplot as plt
-    from scipy.signal import find_peaks
 
     # Create figure
     fig, ax = plt.subplots(figsize=(10, 6))
