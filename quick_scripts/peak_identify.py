@@ -89,28 +89,36 @@ def plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
             max_count = counts.max()
             counts = counts / max_count
 
-            # Offset counts if offset is provided
-            if offset is not None:
-                counts = counts + offset * offset_multiplier
-                offset_multiplier += 1
-
-            # Plot histogram
-            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.plot(bin_centers, counts, drawstyle='steps-mid', label=f'Run {run_num}, Port {port}, Ret {retardation}', color=colors[idx])
-
-            # Find peaks
+            # Perform peak finding on the normalized counts BEFORE offset
             peaks, properties = find_peaks(counts, height=height, distance=distance, prominence=prominence)
 
+            # Offset counts for plotting
+            if offset is not None:
+                counts_offset = counts + offset * offset_multiplier
+                offset_multiplier += 1
+            else:
+                counts_offset = counts
+
+            # Compute bin centers
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+            # Plot histogram
+            ax.plot(bin_centers, counts_offset, drawstyle='steps-mid', label=f'Port {port}', color=colors[idx])
+
+            # Adjust peak counts for plotting (add offset)
+            peak_counts_offset = counts[peaks]
+            if offset is not None:
+                peak_counts_offset += offset * (offset_multiplier - 1)  # Adjust peak counts by the same offset
+
             # Mark peaks
-            peak_energies = bin_centers[peaks]
-            peak_counts = counts[peaks]
-            ax.plot(peak_energies, peak_counts, 'x', color='red')
+            peak_positions = bin_centers[peaks]
+            ax.plot(peak_positions, peak_counts_offset, 'x', color='red')
 
             # Annotate peaks
-            for peak_energy, peak_count in zip(peak_energies, peak_counts):
-                ax.annotate(f'{peak_energy:.2f} eV',
-                            xy=(peak_energy, peak_count),
-                            xytext=(0, 10), textcoords='offset points',
+            for peak_pos, peak_count in zip(peak_positions, peak_counts_offset):
+                ax.annotate(f'{peak_pos:.2f}',
+                            xy=(peak_pos, peak_count),
+                            xytext=(0, 5), textcoords='offset points',
                             ha='center', va='bottom', fontsize=10, color='red',
                             rotation=90,
                             arrowprops=dict(arrowstyle='->', color='red'))
