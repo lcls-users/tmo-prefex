@@ -3,8 +3,14 @@ Todo, update the .h5 files on /lscratch and then move to /sdf/data/lcls/...
 Alright,  this submits as sequence of runs.  nshots and other parameters are set by the slurmscript.  
 This slurmscript can also be executed from an interactive node as a bash script.  
 
+assuming 10000 shots to run.  
 ```bash
-for r in $(seq 70 79); do sbatch slurmscript.bash tmox1016823 $r;done
+for r in $(seq 70 79); do sbatch slurmscript.bash tmox1016823 $r 10000;done
+```
+
+If you want to see the output and run from the interactive terminal for e.g. 5000 shots for e.g. run 85.  
+```bash
+bash slurmscript.bash tmox1016823 85 10000
 ```
 
 For a future when event building is not needed...  
