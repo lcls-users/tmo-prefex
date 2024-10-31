@@ -48,6 +48,12 @@ def parse_params_line(params_line):
     return params_dict
 
 
+def create_variable_bin_edges(energy_min, energy_max, num_bins):
+    # Example: Bin widths increase linearly with energy
+    bin_edges = np.logspace(np.log10(energy_min + 1), np.log10(energy_max + 1), num_bins) - 1 
+    return bin_edges
+
+
 def plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
                                   energy_min, energy_max, bin_width,
                                   height, distance, prominence,
@@ -90,7 +96,7 @@ def plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
 
             # Plot histogram
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.plot(bin_centers, counts, drawstyle='steps-mid', label=f'Run {run_num}, Port {port}', color=colors[idx])
+            ax.plot(bin_centers, counts, drawstyle='steps-mid', label=f'Run {run_num}, Port {port}, Ret {retardation}', color=colors[idx])
 
             # Find peaks
             peaks, properties = find_peaks(counts, height=height, distance=distance, prominence=prominence)
