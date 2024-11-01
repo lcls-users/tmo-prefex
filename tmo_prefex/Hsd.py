@@ -13,7 +13,7 @@ import numpy as np
 from pydantic import BaseModel
 from stream import stream
 
-from utils import (
+from .utils import (
     mypoly, tanhInt, tanhFloat,
     randomround, quick_mean, concat,
     cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic

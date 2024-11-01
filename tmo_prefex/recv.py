@@ -1,5 +1,5 @@
 import stream
-from nng import puller, rate_clock, clock0
+from lclstream.nng import puller, rate_clock, clock0
 
 def main(argv):
     assert len(argv) == 2, f"Usage: {argv[0]} <addr>"

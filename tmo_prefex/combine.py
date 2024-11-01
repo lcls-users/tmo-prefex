@@ -1,11 +1,11 @@
 from typing import List, Dict, Any
 from collections.abc import Callable
 
-from Config import DetectorConfig
-from Hsd import HsdConfig, WaveData, FexData
-from Gmd import GmdConfig, GmdData
-from Spect import SpectConfig, SpectData # was Vls?
-from utils import concat
+from .Config import DetectorConfig
+from .Hsd import HsdConfig, WaveData, FexData
+from .Gmd import GmdConfig, GmdData
+from .Spect import SpectConfig, SpectData # was Vls?
+from .utils import concat
 
 import numpy as np
 from stream import filter

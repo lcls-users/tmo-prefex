@@ -8,10 +8,10 @@ import numpy as np
 import yaml
 from pydantic import BaseModel, Discriminator, Tag
 
-from Hsd import HsdConfig
-from Gmd import GmdConfig
-from Spect import SpectConfig
-from Ebeam import EbeamConfig
+from .Hsd import HsdConfig
+from .Gmd import GmdConfig
+from .Spect import SpectConfig
+from .Ebeam import EbeamConfig
 
 def get_name(v: Any) -> str:
     if isinstance(v, dict):

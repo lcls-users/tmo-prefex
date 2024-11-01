@@ -16,13 +16,13 @@ from stream import (
     chop, map, filter, takewhile,
 )
 
-from Config import Config
-from stream_utils import variable_chunks
+from .Config import Config
+from .stream_utils import variable_chunks
 
-from Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
-from Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
-from Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
-from Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
+from .Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
+from .Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
+from .Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
+from .Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)

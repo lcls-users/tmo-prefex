@@ -1,6 +1,6 @@
 import random
 from stream import source, take, fold
-from nng import pusher, clock0, rate_clock
+from lclstream.nng import pusher, clock0, rate_clock
 
 @source
 def arrays():

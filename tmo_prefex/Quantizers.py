@@ -5,10 +5,11 @@ import h5py
 import sys
 import re
 import math
-from utils import fitpoly,fitcurve,fitval
 import matplotlib.pyplot as plt
 from typing import List
 from sklearn.cluster import KMeans
+
+from .utils import fitpoly,fitcurve,fitval
 
 plotting = False
 
