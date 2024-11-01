@@ -119,7 +119,7 @@ class Batch(dict):
                           if k.lower().endswith("config")]
                 assert len(cfgs) == 1, f"{idx} does not contain a unique config in: {list(data.attrs.keys())}"
                 cfg = DetectorConfig.model_validate_json(
-                        '{"detector":%s}'%cfgs[0])
+                        '{"detector":%s}'%cfgs[0]).detector
                 self[idx] = load_data(cfg, data)
 
         return self

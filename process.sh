@@ -12,7 +12,7 @@ printf -v runstr "r%04d" $runnum
 
 # seems to include s000 .. s019
 if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
-    python3 ./src/fex2h5.py $nshots $expname $runnum
+    fex2h5 $nshots $expname $runnum
 else
     echo "XTC2 file not found for run $expname:$runstr"
 fi

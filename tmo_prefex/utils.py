@@ -6,7 +6,6 @@ import math
 import os
 import re
 from scipy.fftpack import dct,dst
-import matplotlib.pyplot as plt
 
 def show(x):
     offset = 5+np.abs(np.min(x))
@@ -46,6 +45,7 @@ indx=0
 def cfdLogic(s,thresh,offset=2):
     res = (np.array(s).astype(np.int16) - np.roll(s,-offset).astype(np.int16))
     '''
+    import matplotlib.pyplot as plt
     global indx 
     indx += 1
     if indx%1<<14==0:

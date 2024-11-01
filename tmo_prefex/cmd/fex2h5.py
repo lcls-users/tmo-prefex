@@ -97,6 +97,14 @@ def main(nshots:int, expname:str,
     if not os.path.exists(scratchdir):
         os.makedirs(scratchdir)
 
+    # Check whether MPI is enabled, and adjust output filename
+    # appropriately
+    rank = psana.MPI.COMM_WORLD.Get_rank()
+    ranks = psana.MPI.COMM_WORLD.Get_size()
+    rank_suf = ''
+    if ranks > 1:
+        rank_suf = f'-{rank:03d}'
+
     #######################
     #### CONFIGURATION ####
     #######################
@@ -144,7 +152,8 @@ KeyboardInterrupt
     ds = psana.DataSource(exp=expname,run=runnums)
     for i in range(len(runnums)):
         run = next(ds.runs()) # don't call next unless you know it's there...
-        outname = '%s/hits.%s.run_%03i'%(scratchdir,expname,run.runnum)
+        outname = '%s/hits.%s.run_%03i%s'%(scratchdir,expname,
+                                           run.runnum,rank_suf)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
@@ -177,8 +186,8 @@ KeyboardInterrupt
         #   (note: classes test as True)
         s >>= live_events()
         s >>= map(process_all)
-        # - Now chop the stream into lists of length 128.
-        s >>= chop(128)
+        # - Now chop the stream into lists of length n.
+        s >>= chop(512)
         # - Now save each grouping as a "Batch".
         s >>= xmap(batch_data, saves)
         # - Now group those by increasing size and concatenate them.
