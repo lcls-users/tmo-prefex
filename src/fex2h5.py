@@ -134,7 +134,8 @@ def main(nshots:int,runnums:List[int]):
                 gmds[rkey].update({gmdname:run.Detector(gmdname)}) 
                 xray[rkey].update({gmdname:Gmd()})
                 xray[rkey][gmdname].set_runkey(rkey).set_name(gmdname)
-                if re.search('x',gmdname):
+                if re.search('xgmd',gmdname):
+                    print('running xgmd damnit!')
                     xray[rkey][gmdname].set_unit('0.1uJ',scale=1e4)
             else:
                 rungmd = False
@@ -236,8 +237,10 @@ def main(nshots:int,runnums:List[int]):
                         slist:List[ List[int] ] = []
                         if is_fex:
                             nwins = len(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0])
+                            '''
                             if nwins < 3 : # always reports the start of and the end of the fex active window, and ignore if not a peak in there also
                                 continue
+                            '''
                             for i in range(nwins):
                                 xlist += [ hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][0][i] ]
                                 slist += [ np.array(hsds[rkey][hsdname].raw.peaks(evt)[ key ][0][1][i],dtype=np.int32) ]

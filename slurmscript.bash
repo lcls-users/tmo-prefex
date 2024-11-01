@@ -7,10 +7,10 @@
 #SBATCH --error=../output-%j.errout
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=8g
+#SBATCH --mem-per-cpu=12g
 #SBATCH --time=0-05:00:00
 #SBATCH --mail-user=coffee@slac.stanford.edu
-#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-type=FAIL
 #SBATCH --gpus 0
 
 export logpath=$HOME/slurmout

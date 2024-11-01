@@ -262,10 +262,6 @@ class Port:
             return False
         elif len(slist)>2:
             for i,s in enumerate(slist[:-1]):
-                if i==0:
-                    #self.set_baseline(quick_mean(s,4))
-                    continue
-
                 expandBits = 1
                 e,de,ne,logic = cfdLogic_mod(s,thresh=int(-512),offset=2,expandBits=expandBits) # scan the logic vector for hits
                 r = [0]*(len(logic)<<expandBits)
@@ -290,8 +286,8 @@ class Port:
             self.addresses += [np.uint64(len(self.tofs))]
             self.nedges += [np.uint16(len(thise))]
             if len(thise)>0:
-                self.tofs += [v for v in thise]
-                self.slopes += [v for v in thisde]
+                self.tofs += thise
+                self.slopes += thisde
         return True
 
 
