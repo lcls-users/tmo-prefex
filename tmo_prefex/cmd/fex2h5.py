@@ -7,6 +7,7 @@ import sys
 import re
 import os
 
+import typer
 import h5py
 import psana
 import numpy as np
@@ -16,13 +17,13 @@ from stream import (
     chop, map, filter, takewhile,
 )
 
-from .Config import Config
-from .stream_utils import variable_chunks
+from ..Config import Config
+from ..stream_utils import variable_chunks, split, xmap
 
-from .Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
-from .Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
-from .Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
-from .Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
+from ..Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
+from ..Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
+from ..Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
+from ..Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)
@@ -41,8 +42,7 @@ detector_configs = {
     'spect': (setup_spects, run_spects, save_spect),
 }
 
-from stream_utils import split, xmap
-from combine import batch_data, Batch
+from ..combine import batch_data, Batch
 
 @source
 def run_events(run, start_event=0):
@@ -88,7 +88,15 @@ def live_events(events, max_consecutive=100):
             print(errs[-consecutive:])
     print(f"Processed {ev} events with {len(errs)} dropped.")
 
-def main(nshots:int, expname:str, runnums:List[int], scratchdir:str):
+def main(nshots:int, expname:str,
+         runnums:List[int],
+         scratchdir:Optional[str] = None):
+    if scratchdir is None:
+        user = os.environ.get('USER')
+        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files'%(expname,user)
+    if not os.path.exists(scratchdir):
+        os.makedirs(scratchdir)
+
     #######################
     #### CONFIGURATION ####
     #######################
@@ -189,15 +197,5 @@ KeyboardInterrupt
 
     print("Hello, I'm done now.  Have a most excellent day!")
 
-if __name__ == '__main__':
-    if len(sys.argv)>3:
-        nshots = int(sys.argv[1])
-        expname = sys.argv[2]
-        runnums = [int(r) for r in list(sys.argv[3:])]
-        print('Before finalizing, clean up to point to common area for output .h5')
-        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files'%(expname,os.environ.get('USER'))
-        if not os.path.exists(scratchdir):
-            os.makedirs(scratchdir)
-        main(nshots,expname,runnums,scratchdir)
-    else:
-        print('Please give me a number of shots (-1 for all), experiment name, a list of run numbers, and output directory defaults to expt scratch directory)')
+def run():
+    typer.run(main)
