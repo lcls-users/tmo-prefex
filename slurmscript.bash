@@ -1,17 +1,25 @@
 #!/usr/bin/bash
-#SBATCH --partition=roma
 #SBATCH --job-name=fex2h5
 #SBATCH --output=%x-%j.stdout
 #SBATCH --error=%x-%j.stderr
-#SBATCH --ntasks 32
+#
+#SBATCH --partition=milano
+#SBATCH --nodes 1
+#SBATCH --ntasks 64
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=3g
-#SBATCH --time=0-02:00:00
-#SBATCH --gpus 0
+#SBATCH -A lcls:tmox1016823
+#SBATCH -t 120
+#SBATCH --exclusive
 
-expname=tmox1016823
-nshots=0
-runnum=215
+
+if [ $# -lt 2 ]; then
+  echo "Usage: sbatch $0 <expname> <runnum> [--dial tcp://addr:port]"
+  exit 1
+fi
+
+nshots=0 # otherwise MPI mode hangs
+expname=$1
+runnum=$2
 
 PARALLEL=/sdf/home/r/rogersdd/venvs/psana2/bin/parallel
 BASE=/sdf/home/r/rogersdd/src/tmo-prefex
@@ -39,7 +47,7 @@ printf -v runstr "r%04d" $runnum
 # seems to include s000 .. s019
 if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
     # If do right, no can defense.
-    time mpirun fex2h5 $nshots $expname $runnum
+    time mpirun fex2h5 $nshots $@
 else
     echo "XTC2 file not found for run $expname:$runstr"
 fi

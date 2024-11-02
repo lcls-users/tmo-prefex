@@ -1,0 +1,32 @@
+# To submit job:
+#  message https://defiant/jobs/dtn --yaml mk_hist.yaml
+#  message https://defiant/jobs/dtn/{id}
+#
+
+#  message https://defiant/jobs/dtn/1730473943.459
+#    [{"jobid":"1730473943.459","name":"mk_hist","updated":1730473943.5017505,"jobndx":0,"state":"new","info":0},{"jobid":"1730473943.459","name":"mk_hist","updated":1730473943.6228828,"jobndx":1,"state":"queued","info":6149},{"jobid":"1730473943.459","name":"mk_hist","updated":1730473948.4550412,"jobndx":1,"state":"active","info":6149}]
+# 
+#  message https://defiant/outputs/dtn/1730473943.459/logs
+#   {"stderr.1":"","stdout.1":""}
+
+
+name: mk_hist
+script: |
+  echo Running $mpirun tof_hist --dial tcp://134.79.23.43:3000
+  PATH=/lustre/polis/csc266/world-shared/schedulers/bin:$PATH
+  $mpirun tof_hist --dial tcp://134.79.23.43:3000
+
+resources:
+    duration: 30
+    node_count: 1
+    # cpu-intensive
+    processes_per_node: 1
+    cpu_cores_per_process: 15
+    gpu_cores_per_process:  1
+    # gpu-intensive
+    #processes_per_node: 4
+    #gpu_cores_per_process: 1
+
+# Enabling these would send HTTP calls when the job changes state.
+callback: null
+cb_secret: null
