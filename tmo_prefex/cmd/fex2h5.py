@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import re
 import os
+import io
 
 import typer
 import h5py
@@ -14,8 +15,11 @@ import numpy as np
 from stream import (
     stream, source, sink,
     take, Source, takei, seq, gseq,
-    chop, map, filter, takewhile,
+    chop, map, filter, takewhile, cut
 )
+
+from lclstream.nng import pusher
+from lclstream.stream_utils import clock
 
 from ..Config import Config
 from ..stream_utils import variable_chunks, split, xmap
@@ -24,11 +28,14 @@ from ..Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
 from ..Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
 from ..Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
 from ..Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
+from ..combine import batch_data, Batch
 
 # Some types:
 DetectorID   = Tuple[str, int] # ('hsd', 22)
 DetectorData = Union[WaveData, FexData, GmdData, EbeamData, SpectData]
 EventData    = Dict[DetectorID, DetectorData]
+
+app = typer.Typer(pretty_exceptions_enable=False)
 
 def save_fex(run, params):
     return setup_hsds(run, params, default_fex)
@@ -42,20 +49,45 @@ detector_configs = {
     'spect': (setup_spects, run_spects, save_spect),
 }
 
-from ..combine import batch_data, Batch
-
 @source
-def run_events(run, start_event=0):
-    for i, evt in enumerate(run.events()):
-        yield i+start_event, evt
+def run_events(run):
+    # Note: using timesamp_diff instead of sequence number
+    # because it maintains uniqueness if fex2h5 is run in parallel.
+    t0 = run.timestamp
+    # note, that these numbers are O(112_538_353)
+    # and typically step by 120_000
+    # maybe nanoseconds units?
+    for evt in run.events():
+        t = evt.timestamp_diff(t0)
+        yield (t+500)//1000, evt
 
-@sink
-def write_out(inp: Iterator[Batch], outname: str) -> None:
+@stream
+def write_out(inp: Iterator[Batch], outname: str) -> Iterator[int]:
+    """ Accumulate all events into one giant file.
+        Write accumulated result with each iterate.
+    """
+    batch0 = None
     for i, batch in enumerate(inp):
-        name = f"{outname}.{i}.h5"
-        print('writing batch %i to %s'%(i,name))
-        with h5py.File(name,'w') as f:
-            batch.write_h5(f)
+        if batch0 is None:
+            batch0 = batch
+        else:
+            batch0.extend(batch)
+        # Extend instead of writing separate files.
+        print('writing batch %i to %s'%(i,outname))
+        with h5py.File(outname,'w') as f:
+            batch0.write_h5(f)
+
+        try:
+            nev = len(batch[next(batch.keys())].events)
+        except Exception:
+            nev = 0
+        yield nev
+
+def serialize_h5(batch: Batch) -> bytes:
+    with io.BytesIO() as f:
+        with h5py.File(f, 'w') as h:
+            batch.write_h5(h)
+        return f.getvalue()
 
 def process_all(tps):
     for dtype in tps:
@@ -69,6 +101,7 @@ def process_all(tps):
 def live_events(events, max_consecutive=100):
     errs = []
     consecutive = 0
+    ev = 0
     for ev,dets in enumerate(events):
         failed = [i for i,d in enumerate(dets) if d is None]
         if len(failed) == 0:
@@ -88,9 +121,11 @@ def live_events(events, max_consecutive=100):
             print(errs[-consecutive:])
     print(f"Processed {ev} events with {len(errs)} dropped.")
 
-def main(nshots:int, expname:str,
-         runnums:List[int],
-         scratchdir:Optional[str] = None):
+@app.command()
+def main(nshots: int, expname: str,
+         runnums: List[int],
+         dial: Optional[str] = None,
+         scratchdir: Optional[str] = None):
     if scratchdir is None:
         user = os.environ.get('USER')
         scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files'%(expname,user)
@@ -111,7 +146,8 @@ def main(nshots:int, expname:str,
     cfgname = '%s/%s.%s.configs.yaml'%(scratchdir,expname,os.environ.get('USER'))
     inp_cfg = 'config.yaml'
     if Path(inp_cfg).exists():
-        print("Reading config.yaml")
+        if rank == 0:
+            print("Reading config.yaml")
         cfg = Config.load(inp_cfg)
     else:
         raise ValueError("No config.yaml")
@@ -152,8 +188,8 @@ KeyboardInterrupt
     ds = psana.DataSource(exp=expname,run=runnums)
     for i in range(len(runnums)):
         run = next(ds.runs()) # don't call next unless you know it's there...
-        outname = '%s/hits.%s.run_%03i%s'%(scratchdir,expname,
-                                           run.runnum,rank_suf)
+        outname = '%s/hits.%s.run_%03i%s.h5'%(scratchdir,expname,
+                                              run.runnum,rank_suf)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
@@ -165,7 +201,7 @@ KeyboardInterrupt
             saves.append(save)
 
         # Save these params.
-        if i == 0:
+        if i == 0 and rank == 0:
             print(f"Saving config to {cfgname}")
             Config.from_dict(params).save(cfgname, overwrite=True)
 
@@ -201,10 +237,16 @@ KeyboardInterrupt
         s >>= variable_chunks(sizes) >> map(Batch.concat)
 
         # 5. The entire stream "runs" when connected to a sink:
-        s >> write_out(outname)
-
+        if dial is None:
+            s >>= write_out(outname)
+        else:
+            send_pipe = map(serialize_h5) >> pusher(dial, 1)
+            # do both hdf5 file writing
+            # and send_pipe.  Use cut[0] to pass only
+            # the result of write_out (event counts).
+            s >>= split(write_out(outname), send_pipe) \
+                  >> cut[0]
+        for stat in s >> clock():
+            print(stat, flush=True)
 
     print("Hello, I'm done now.  Have a most excellent day!")
-
-def run():
-    typer.run(main)

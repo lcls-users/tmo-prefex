@@ -8,7 +8,9 @@
 # 
 #  message https://defiant/outputs/dtn/1730473943.459/logs
 #   {"stderr.1":"","stdout.1":""}
-
+#
+#  message https://defiant/outputs/dtn/1730518299.305/work/tof_hist.svg \
+#       >tof_hist.svg
 
 name: mk_hist
 script: |

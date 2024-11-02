@@ -37,8 +37,8 @@ setup(
     entry_points={
         # make the scripts available as command line scripts
         "console_scripts": [
-            "fex2h5 = tmo_prefex.cmd.fex2h5:run",
-            "concat_prefex = tmo_prefex.cmd.concat_prefex:run",
+            "fex2h5 = tmo_prefex.cmd.fex2h5:app",
+            "concat_prefex = tmo_prefex.cmd.concat_prefex:app",
         ]
     },
     #packages=find_packages(),       # Automatically find packages in the directory

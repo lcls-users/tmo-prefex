@@ -1,5 +1,6 @@
-
+import io
 from pathlib import Path
+here = Path(__file__).resolve().parent
 
 import numpy as np
 import h5py
@@ -46,6 +47,33 @@ def test_combine():
     for k, v in batch1.items():
         assert len(v['events']) == a[k]+3*b[k]
 
+def test_io(tmpdir):
+    with h5py.File(here/"test1.h5") as f:
+        batch = Batch.from_h5(f)
+    with h5py.File(tmpdir/"copy.h5", "w") as f:
+        batch.write_h5(f)
+    with h5py.File(tmpdir/"copy.h5") as f:
+        batch2 = Batch.from_h5(f)
+
+    assert list(batch.keys()) == list(batch2.keys())
+
+def test_memio():
+    with h5py.File(here/"test1.h5") as h:
+        batch = Batch.from_h5(h)
+
+    with io.BytesIO() as f:
+        with h5py.File(f, 'w') as h:
+            batch.write_h5(h)
+        msg = f.getvalue()
+
+    with io.BytesIO(msg) as f:
+        with h5py.File(f, 'r') as h:
+            batch2 = Batch.from_h5(h)
+
+    assert list(batch.keys()) == list(batch2.keys())
+
 if __name__=="__main__":
     #test_batch()
-    test_combine()
+    #test_combine()
+    #test_io( Path() )
+    test_memio()

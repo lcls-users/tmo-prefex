@@ -8,6 +8,9 @@ import typer
 
 from ..combine import Batch
 
+app = typer.Typer(pretty_exceptions_enable=False)
+
+@app.command()
 def concat_prefex(files: Annotated[List[Path],
                                    typer.Argument(help="h5 files to concat")],
                   out: Annotated[Path, typer.Option("--out", "-o")]
@@ -22,6 +25,3 @@ def concat_prefex(files: Annotated[List[Path],
 
     with h5py.File(out, "w") as f:
         batch.write_h5(f)
-
-def run():
-    typer.run(concat_prefex)
