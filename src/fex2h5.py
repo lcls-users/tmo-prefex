@@ -17,6 +17,7 @@ from Gmd import *
 from Spect import *
 from Config import Config
 from utils import *
+import yaml
 
 
 
@@ -31,7 +32,7 @@ def main(nshots:int,runnums:List[int]):
     #######################
     #### CONFIGURATION ####
     #######################
-    cfgname = '%s/config.h5'%(os.environ.get('configpath'))
+    cfgname = '%s/config.yaml'%(os.environ.get('configpath'))
     configs = Config(is_fex=True)
     params = configs.writeconfigs(cfgname).getparams()
     is_fex = params['is_fex']
