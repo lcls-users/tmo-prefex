@@ -293,7 +293,8 @@ def main(nshots:int,runnums:List[int]):
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
             
-            elif eventnum > 10000 and eventnum % 10000:
+            if eventnum > 10000 and eventnum % 10000:
+                Port.initState = True
                 chunk += 1
         # end event loop
 
