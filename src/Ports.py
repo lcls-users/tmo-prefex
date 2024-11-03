@@ -263,7 +263,7 @@ class Port:
         elif len(slist)>2:
             for i,s in enumerate(slist[:-1]):
                 expandBits = 1
-                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-512),offset=2,expandBits=expandBits) # scan the logic vector for hits
+                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),offset=2,expandBits=expandBits) # scan the logic vector for hits
                 r = [0]*(len(logic)<<expandBits)
                 for ind in e:
                     r[ind] = 1

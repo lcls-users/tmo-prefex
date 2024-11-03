@@ -6,6 +6,7 @@ import sys
 import math
 import statistics as stats
 from utils import getCentroid
+import re
 
 def quickCentroid(data):
     sz = len(data)
@@ -128,10 +129,53 @@ class Spect:
 
 
     def process(self,s):
-        if self.processAlgo != 'piranha':
+        if re.search('piranha',self.processAlgo):
+            if re.search('slim',self.processAlgo):
+                return self.process_piranha_slim(s)
+            return self.process_piranha(s)
+        else:
             return self.process_vls(s)
-        return self.process_piranha(s)
 
+
+    def process_piranha_slim(self,signal):
+        sz = len(signal)
+        base:np.uint32 = int(stats.mode(signal>>2)<<2)
+        sumiy:np.uint32 = sum([i*(int(d)-int(base)) for i,d in enumerate(signal)])# - base*(sz*(sz-1))>>1
+        #sumiy:np.uint32 = sum([i*d for i,d in enumerate(s)]) - base*(sz*(sz-1))>>1
+        sumy:np.uint32 = sum(signal) 
+        if np.max(signal) < base<<1:
+            if self.initState:
+                self.vc = [np.uint16(0)]
+                self.vs = [np.uint64(0)]
+                self.vw = [np.uint16(0)]
+                self.initState = False
+            else:
+                self.vc += [np.uint16(0)]
+                self.vs += [np.uint64(0)]
+                self.vw += [np.uint16(0)]
+            return True
+
+        sumy -= base*sz
+        cent:np.uint16 = 0 # sumiy//sumy
+        sumi2y:np.int32 = 0
+        if sumy>0:
+            cent:np.uint16 = sumiy//sumy
+            sumi2y = sum([(abs(int(i)-int(cent))**2)*(d-base) for i,d in enumerate(signal) if d>(base+self.thresh)])# - base*(n*(n-1)*(2*(n-1)+1))//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
+            #sumi2y:np.uint32 = sum([(i-cent)**2*d for i,d in enumerate(s)]) - base*sz*(sz-1)*(2*sz-1)//6 #sum([i*i for i in range(sz)]) # for large sz this approaches sum([i**2 for i in range(sz)]) --> (sz**3)/3
+        width:np.uint16 = np.uint16(0)
+        if sumi2y>0 and sumy>0:
+            width:np.uint16 = math.isqrt(sumi2y//sumy)
+
+        if self.initState:
+            self.vc = [np.uint16(cent)]
+            self.vs = [np.uint64(sumy)]
+            self.vw = [np.uint16(width)]
+            self.initState = False
+        else:
+            self.vc += [np.uint16(cent)]
+            self.vs += [np.uint64(sumy)]
+            self.vw += [np.uint16(width)]
+        return True
 
     def process_piranha(self,signal):
         sz = len(signal)
@@ -191,7 +235,6 @@ class Spect:
             self.vc += [np.uint16(cent)]
             self.vs += [np.uint64(sumy)]
             self.vw += [np.uint16(width)]
-
         return True
 
     def process_vls(self, wv):

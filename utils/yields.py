@@ -5,8 +5,34 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Type,List
+import h5py
+import re
 
-def main(expname,maxevents:np.uint32,runnums):
+def yield_h5(h5name,offset):
+    lim = 1<<5
+    h = []
+    with h5py.File(h5name,'r') as f:
+        runs = [s for s in f.keys()]
+        for r in runs:
+            hsd = f[r]['mrco_hsd']
+            fzp = f[r]['tmo_fzppiranha']
+            xgmd = f[r]['xgmd']
+            ens = xgmd['energy'][()]
+            ports = [p for p in hsd.keys()]
+            for i,p in enumerate(ports):
+                h += [[0]*(lim)]
+                for n in hsd[p]['nedges'][()]:
+                    if n<lim:
+                        h[i][n] +=1
+                plt.stairs([v+(i*offset) for v in h[i]],label=p)
+            plt.title(r)
+            plt.legend()
+            plt.xlabel('counts/shot')
+            plt.ylabel('hist + i * %s'%offset)
+            plt.show()
+    return
+
+def yield_xtc(expname,maxevents:np.uint32,runnums):
     thresh = 19000
     yields = {}
     gmds = {}
@@ -52,16 +78,17 @@ def main(expname,maxevents:np.uint32,runnums):
         plt.plot(xvals,yvals,label = 'run %i'%(run.runnum))
     plt.legend()
     plt.show()
+    return
 
-
+def main():
+    if re.search('h5$',sys.argv[1]) and len(sys.argv)>2:
+        yield_h5(sys.argv[1],int(sys.argv[2]))
+    elif (len(sys.argv)>3):
+        yield_xtc(sys.argv[1],sys.argv[2],sys.argv[3:])
     return
 
 if __name__ == '__main__':
-    if len(sys.argv)>3:
-        print(sys.argv[0])
-        print(sys.argv[1])
-        print(sys.argv[2])
-        print(sys.argv[3])
-        main(sys.argv[2],int(sys.argv[1]),sys.argv[3:])
-    else:
+    if len(sys.argv)==1:
         print('please give an maxevents expname runnum list')
+    else:
+        main()

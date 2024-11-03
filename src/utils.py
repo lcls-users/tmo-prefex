@@ -76,7 +76,7 @@ def cfdLogic(s,thresh,offset=2):
 
 def cfdLogic_mod(s,thresh,offset=2,expandBits=2):
     res = (np.roll(s,offset>>1).astype(np.int32) - np.roll(s,-(offset>>1)).astype(np.int32))
-    res *= np.array(s).astype(np.int32)-(1<<14)
+    res *= np.array(s).astype(np.int32)-(1<<11)
     res >>= 12 
     '''
     global indx 
