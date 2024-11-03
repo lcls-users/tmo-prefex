@@ -12,6 +12,7 @@ from lclstream.nng import puller
 from lclstream.stream_utils import clock
 
 from ..combine import Batch
+from ..stream_utils import split
 
 run = typer.Typer(pretty_exceptions_enable=False)
 
@@ -64,27 +65,41 @@ def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
     dets = [('mrco_hsd', i) for i in ids]
 
     x = get_xval(start, stop, nbins)
-    for (H, nev) in src >> accum_tofs(dets, start, stop, nbins):
-        plot_counts(x, H, nev, dets)
+    for (tofs, ned) in src >> split(accum_tofs(dets, start, stop, nbins),
+                                    accum_edges(dets)):
+        H, nev, M = tofs
+        plot_counts(x, H, M, dets)
+        plot_ned(ned)
 
-    #tof_counts = np.zeros(30, dtype=int)
+@stream.stream
+def accum_edges(src, dets, nbins=30):
+    """ Accumulate a histogram over values of nedges.
+    """
+    ned = {idx: np.zeros(nbins, dtype=int) for idx in dets}
+    for i, batch in enumerate(src):
+        evt = len(batch[('gmd',0)]['events'])
+
+        for idx in dets:
+            nedges = batch[idx]['nedges']
+            ned[idx] += np.bincount(nedges.astype(int), minlength=nbins)
+            # all events which did not define it implicitly have nedges=0
+            ned[idx][0] += evt-len(nedges)
+        yield ned
+
 @stream.stream
 def accum_tofs(src, dets, start, stop, nbins):
     nev = {idx: 0 for idx in dets}
     H   = {idx: 0 for idx in dets}
+    M = 0
     for i, batch in enumerate(src):
         evt = len(batch[('gmd',0)]['events'])
+        M += evt
         
         info = [f"Batch {i}: {evt} events", ""]
         n = 0
         for idx in dets:
             N = len(batch[idx]['events'])
             tofs = batch[idx]['tofs']
-            nev[idx] += N
-
-            if N != len(tofs):
-                print(f"Mismatch between events ({N}) and tofs ({len(tofs)})!")
-                continue
             nev[idx] += N
 
             # print counts
@@ -98,7 +113,7 @@ def accum_tofs(src, dets, start, stop, nbins):
             H[idx] = H[idx]+create_hist(tofs, start, stop, nbins)
 
         print("\n".join(info), flush=True)
-        yield H, nev
+        yield H, nev, M
 
 def plot_counts(x, hists, nev, ports):
     import matplotlib.pyplot as plt
@@ -106,8 +121,8 @@ def plot_counts(x, hists, nev, ports):
     fig, axs = plt.subplots(ncols=4, nrows=4, figsize=(10, 5),
                             layout="constrained")
     for i, idx in enumerate(ports):
-        H = hists[idx]/nev[idx]
-        total = H.sum()
+        H = hists[idx]/nev
+        total = H.sum()*100
         #h = H.cumsum() # convert to CDF for plotting
         h = H/(x[1]-x[0]) # take derivative for PDF plotting
 
@@ -119,9 +134,25 @@ def plot_counts(x, hists, nev, ports):
         #ax.set_xlim(2800,3400)
         #ax.set_xlim(1500, 3000)
         #ax.set_xlabel('histbins = 1 hsd bins')
-        ax.set_xlabel(f'{idx[1]}: {total:0.1f}')
+        ax.set_xlabel(f'{idx[1]}: {total:0.1f}/100')
         #ax.set_ylabel('hits')
         #plt.show()
 
     print("Saving tof_hist.svg", flush=True)
     plt.savefig("tof_hist.svg")
+
+def plot_ned(ned):
+    import matplotlib.pyplot as plt
+
+    plt.cla()
+    plt.clf()
+    add = 0
+    for idx, v in ned.items():
+        x = np.arange(len(v))
+        v[0] *= 1e-3
+        plt.step(x, v+add, label=str(idx))
+        add += v.max()
+    plt.legend()
+
+    print("Saving edges_hist.svg", flush=True)
+    plt.savefig("edges_hist.svg")
