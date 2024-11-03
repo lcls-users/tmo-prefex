@@ -1,0 +1,48 @@
+#!/bin/bash
+# This script starts nng_cache and executes
+#
+#     ssh psana sbatch slurmscript.bash ...
+#
+# to move the data through that cache.
+#
+# The first two arguments should be recv and send port-numbers
+# on sftdtn (the host where this script, and nng_cache is run).
+#
+# Some example arguments to this script:
+#
+# 1234 1235 <exptname> <runnum>
+# i.e. everything required by fex2h5 except the `nruns` and `--dial $addr`
+
+if [ $# -ne 4 ]; then
+    echo "Usage: $0 <recv port> <send port> <exptname> <runnum>"
+    exit 1
+fi
+
+host=`hostname`
+addr=`host $host | awk '{print $NF}'`
+recv=$1
+send=$2
+shift; shift;
+jobid=-1
+
+/sdf/home/r/rogersdd/src/nng_stream/nng_cache -vv tcp://$addr:$recv tcp://$addr:$send 62 &
+
+submit_job() {
+  ssh psana sbatch /sdf/home/r/rogersdd/src/tmo-prefex/slurmscript.bash \
+			$@ --dial tcp://$addr:$recv \
+    | sed -n 's/.*[ \t]\([0-9][0-9]*\).*/\1/p'
+}
+
+
+# disable this handler and cancel the underlying job if we receive an signal
+trap 'trap " " SIGTERM EXIT; [ $jobid -ge 0 ] && ssh psana scancel $jobid; kill 0; wait' SIGINT SIGTERM EXIT
+
+jobid=`submit_job $@`
+if [[ x"$jobid" == x"" ]]; then
+    echo "Error starting job."
+    kill 0
+    exit 1
+fi
+echo "Queued $jobid"
+
+wait
