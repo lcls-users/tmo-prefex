@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-def make hist
+
 
 def main(run_files):
     run_folders_all = os.listdir(run_files)
     run_folders = []
     for file in run_folders_all:
-        if "r008" in file:
+        if "215" in file:
             run_folders.append(file)
     
     for run in run_folders:
@@ -20,8 +20,8 @@ def main(run_files):
             if "config" not in hit:
                 hit_file = hit
         
-        data = h5py.File(os.path.join(run_files, run, hit), "r")
-        
+        data = h5py.File(os.path.join(run_files, run, hit_file), "r")
+        print("filename: ", os.path.join(run_files, run, hit))
         print("data keys: ", data.keys())
         print("data[1] keys: ", data[list(data.keys())[0]].keys())
         print("data[1] keys: ", data[list(data.keys())[0]]['mrco_hsd'].keys())
@@ -30,7 +30,7 @@ def main(run_files):
         print(data[list(data.keys())[0]]['gmd']['events'])
         plt.plot(data[list(data.keys())[0]]['gmd']['events'][()])
         plt.show()
-        print(data[list(data.keys())[0]]['gmd']['energy'])
+        print("gmd energy: ", data[list(data.keys())[0]]['gmd']['energy'])
         plt.plot(data[list(data.keys())[0]]['gmd']['energy'][()])
         plt.show()
         
@@ -106,6 +106,7 @@ def main(run_files):
             
             print("slopes: ", mrco_data[port]['slopes'][()])
             print("addresses: ", mrco_data[port]['addresses'][()])
+            print("adresses length: ", len(mrco_data[port]['addresses'][()]))
             plt.plot(mrco_data[port]['addresses'][()], '+')
             plt.show()
             
