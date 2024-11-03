@@ -22,7 +22,11 @@ fex2h5 <nruns> <runname> <list of run numbers>
 ```
 
 For additional clues, see `process.sh`, which does some
-additional hand-waving before calling fex2h5.
+additional hand-waving before calling fex2h5,
+
+```
+ssh psana $PWD/process.sh 1000 tmox1016823 330
+```
 
 ## parallel execution
 
@@ -65,8 +69,9 @@ python plot.py
 Run fex2h5 with --send option:
 ```bash
 ssh sdfdtn003 # need to be on a dtn
-. /sdf/home/r/rogersdd/src/tmo-prefex/env.sh
-/sdf/home/r/rogersdd/src/tmo-prefex/tmo_cached_push 3001 3000 tmox1016823 <run>
+cd /sdf/home/r/rogersdd/src/tmo-prefex
+. ./env.sh
+./tmo_cached_push 3001 3000 tmox1016823 <run>
 ```
 
 This will send batches of results while the h5 files

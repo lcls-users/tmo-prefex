@@ -65,8 +65,13 @@ def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
         n = 0
         arg = ""
         for idx in dets:
-            nev[idx] += len(batch[idx]['events'])
+            N = len(batch[idx]['events'])
             tofs = batch[idx]['tofs']
+
+            if N != len(tofs):
+                print(f"Mismatch between events ({N}) and tofs ({len(tofs)})!")
+                continue
+            nev[idx] += N
 
             # print counts
             arg += " %8d"%len(tofs)

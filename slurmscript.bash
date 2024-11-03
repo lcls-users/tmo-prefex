@@ -2,7 +2,8 @@
 #SBATCH --job-name=fex2h5
 #SBATCH --output=%x-%j.stdout
 #SBATCH --error=%x-%j.stderr
-#
+#SBATCH --reservation lcls:earlyscience
+#SBATCH -x sdfmilan084
 #SBATCH --partition=milano
 #SBATCH --nodes 1
 #SBATCH --ntasks 64

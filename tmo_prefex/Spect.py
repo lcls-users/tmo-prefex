@@ -6,6 +6,8 @@ from stream import stream
 
 import numpy as np
 
+from .utils import concat
+
 def getCentroid(data,pct=.8):
     csum = np.cumsum(data.astype(float))
     s = float(csum[-1])*pct
@@ -35,6 +37,7 @@ class SpectConfig(BaseModel):
     vlsthresh: int
     winstart: int = 0
     winstop: int = 1<<11
+    save_wv: bool = True
 
 def setup_spects(run, params):
     spectnames = [s for s in run.detnames \
@@ -124,12 +127,19 @@ def run_spects(events, spects, params) -> Iterator[Optional[Dict[str,Any]]]:
 def save_spect(data: List[SpectData]) -> Dict[str,Any]:
     if len(data) == 0:
         return {}
-    d1 = [x for x in data if x.vc is not None]
-    return dict(
+    if data[0].cfg.save_wv:
+        d1 = data
+    else: # Only need to keep all events if we capture x.v ~> wv
+        d1 = [x for x in data if x.vc is not None]
+    ans = dict(
         config = data[0].cfg,
         events = np.array([x.event for x in d1], dtype=np.uint32),
-        centroids = np.array([x.vc for x in d1], dtype=np.float16),
-        vsum = np.array([x.vs for x in d1], dtype=np.uint64),
+        centroids = np.array([x.vc or 0 for x in d1], dtype=np.float16),
+        vsum = np.array([x.vs or 0 for x in d1], dtype=np.uint64),
         vsize = np.array([x.vsize for x in d1], dtype=np.int32),
-        # capture any raw x.v?
     )
+    if data[0].cfg.save_wv: # capturing raw x.v
+        ans['offsets'] = ans['vsize'].astype('uint64').cumsum() \
+                         - ans['vsize'][0]
+        ans['wv'] = concat([x.v for x in d1])
+    return ans

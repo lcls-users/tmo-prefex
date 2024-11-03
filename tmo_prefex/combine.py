@@ -41,10 +41,11 @@ class Batch(dict):
               # from Gmd detectors
               'energies': np.int16,
               # from Spect detectors
-              #'v': int, 
+              'offsets': np.uint64, # FIXME: call all addresses "offsets"
+              'wv': np.int16, # indexed via offsets,vsize
               'centroids': np.float16,
               'vsum': np.uint64,
-              'vsize': np.int32,
+              'vsize': np.int32, # FIXME: call all sizes "lengths"
               # from Ebeam detectors
               'l3energy': np.float16,
               'l3offset': np.uint16,
@@ -53,6 +54,11 @@ class Batch(dict):
         super().__init__(*args, **kwargs)
 
     def extend(self, *data) -> "Batch":
+        # FIXME: add a level to addr_keys, so it's indexed first by
+        # detector type.
+        # Then all address fields can be called 'addresses'
+        # but index different value names for ea. kind of detector.
+        #
         # address keys and their corresponding data targets
         # - these are used to update addressing info.
         #   for appended data blocks.
@@ -61,6 +67,7 @@ class Batch(dict):
             # that len(slopes) == len(tofs)
             'addresses':    ['tofs', 'slopes'],
             'rl_addresses': ['rl_data'],
+            'offsets':      ['wv'],
         }
         data = [d for d in data if len(d) > 0]
         if len(data) == 0:

@@ -13,6 +13,7 @@
 # 1234 1235 <exptname> <runnum>
 # i.e. everything required by fex2h5 except the `nruns` and `--dial $addr`
 
+jobid=-1
 if [ $# -ne 4 ]; then
     echo "Usage: $0 <recv port> <send port> <exptname> <runnum>"
     exit 1
@@ -23,7 +24,6 @@ addr=`host $host | awk '{print $NF}'`
 recv=$1
 send=$2
 shift; shift;
-jobid=-1
 
 /sdf/home/r/rogersdd/src/nng_stream/nng_cache -vv tcp://$addr:$recv tcp://$addr:$send 62 &
 
