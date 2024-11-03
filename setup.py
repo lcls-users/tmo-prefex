@@ -40,6 +40,7 @@ setup(
             "fex2h5 = tmo_prefex.cmd.fex2h5:app",
             "concat_prefex = tmo_prefex.cmd.concat_prefex:app",
             "tof_hist = tmo_prefex.cmd.tof_hist:run",
+            "tof_corr = tmo_prefex.cmd.correlate:run",
         ]
     },
     #packages=find_packages(),       # Automatically find packages in the directory
