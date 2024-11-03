@@ -77,7 +77,7 @@ Running analysis on defiant:
 
 1. ask David for how to get a signed cert. to use the API
 ```bash
-message https://defiant/jobs/dtn --yaml mk_hist.yaml
+message https://defiant/jobs --yaml mk_hist.yaml
 ```
 see `mk_hist.yaml` for more info.
 
