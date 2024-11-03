@@ -30,16 +30,19 @@ def load_h5(buf: bytes) -> Batch:
         #    f.write(buf)
     return None
 
-def get_xval(start=1000, stop=4000, nbin=1500):
-    return np.arange(0.5, nbin)*(stop-start)/nbin + start
+def get_xval(start, stop, nbins):
+    return np.arange(0.5, nbins)*(stop-start)/nbins + start
 
-def create_hist(tofs, start=1000, stop=4000, nbin=1500):
-    #counts, _ = np.histogram(tofs, bins=nbin, range=(0,nbin))
-    counts, _ = np.histogram(tofs, bins=nbin, range=(start,stop))
+def create_hist(tofs, start, stop, nbins):
+    #counts, _ = np.histogram(tofs, bins=nbins, range=(0,nbins))
+    counts, _ = np.histogram(tofs, bins=nbins, range=(start,stop))
     return counts
 
 def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
              dial: Annotated[Optional[str], typer.Option()] = None,
+             start: Optional[int] = 4500,
+             stop: Optional[int] = 9000,
+             nbins: Optional[int] = 1000,
             ):
 
     if fname is not None:
@@ -57,16 +60,24 @@ def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
     """
     dets = [('mrco_hsd', i) for i in ids]
 
+    x = get_xval(start, stop, nbins)
+    for (H, nev) in src >> accum_tofs(dets, start, stop, nbins):
+        plot_counts(x, H, nev, dets)
+
+    #tof_counts = np.zeros(30, dtype=int)
+@stream.stream
+def accum_tofs(src, dets, start, stop, nbins):
     nev = {idx: 0 for idx in dets}
     H   = {idx: 0 for idx in dets}
     for i, batch in enumerate(src):
-        evt = len(batch[dets[0]]['events'])
-        print(f"Batch {i} / {evt} events", flush=True)
+        evt = len(batch[('gmd',0)]['events'])
+        
+        info = [f"Batch {i}: {evt} events", ""]
         n = 0
-        arg = ""
         for idx in dets:
             N = len(batch[idx]['events'])
             tofs = batch[idx]['tofs']
+            nev[idx] += N
 
             if N != len(tofs):
                 print(f"Mismatch between events ({N}) and tofs ({len(tofs)})!")
@@ -74,18 +85,17 @@ def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
             nev[idx] += N
 
             # print counts
-            arg += " %8d"%len(tofs)
+            info[-1] += " %8d"%len(tofs)
             n += 1
             if n%4 == 0:
-                print(arg+"\n", flush=(n==16))
-                arg = ""
+                info.append("")
 
-            tofs = tofs[np.where(tofs<(1<<14))] >>1
+            tofs = tofs[np.where(tofs<(1<<14))]
             
-            H[idx] = H[idx]+create_hist(tofs)
+            H[idx] = H[idx]+create_hist(tofs, start, stop, nbins)
 
-        x = get_xval()
-        plot_counts(x, H, nev, dets)
+        print("\n".join(info), flush=True)
+        yield H, nev
 
 def plot_counts(x, hists, nev, ports):
     import matplotlib.pyplot as plt
@@ -100,9 +110,10 @@ def plot_counts(x, hists, nev, ports):
 
         ax = axs[i//4, i%4]
         #ax.title(f'{idx}')#: {ev} events, {total/ev} counts/event')
-        ax.plot(x, h, label=str(idx))
+        #ax.plot(x, h, label=str(idx))
+        ax.step(x, h, label=str(idx))
         #ax.legend()
-        ax.set_xlim(2800,3400)
+        #ax.set_xlim(2800,3400)
         #ax.set_xlim(1500, 3000)
         #ax.set_xlabel('histbins = 1 hsd bins')
         ax.set_xlabel(f'{idx[1]}: {total:0.1f}')
