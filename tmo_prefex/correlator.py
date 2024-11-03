@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, List, Dict
+from typing import TypeVar, Generic, List, Dict, Any
 T = TypeVar('T')
 
 import numpy as np
@@ -39,6 +39,33 @@ class Quantizer(Generic[T]):
         # The following should be true:
         #assert A.shape == (self.rows(data), self.nbins)
         pass
+
+class PassThroughQ(Quantizer[Any]):
+    """ Pass through a sub-array of the input.
+        like Event... - takes a Tuple (FIXME: the type annotation)
+    """
+    def __init__(self, start, stop,
+                 offsets='offsets',
+                 lengths='vsize',
+                 vals='wv') -> None:
+        super().__init__(start, stop, stop-start)
+        self.offsets = offsets
+        self.lengths = lengths
+        self.vals = vals
+
+    def rows(self, data: Any) -> int:
+        return max(data[0])+1
+
+    def __call__(self, data: Any, A: xp.ndarray) -> None:
+        indices, d = data
+        vals = d[self.vals]
+        for i,m,n in zip(indices, d[self.offsets], d[self.lengths]):
+            start = self.start
+            end = min(n, self.stop)
+            print(m, start, end)
+            print(m+start, m+end)
+            m = int(m)
+            A[i, 0:end-start] = vals[m+start:m+end]
 
 class PackedQuantizer(Quantizer[xp.ndarray]):
     """ Quantize "packed" data, where:

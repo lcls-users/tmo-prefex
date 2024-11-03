@@ -16,7 +16,7 @@ import dash_bootstrap_components as dbc
 detectors = [  0,  22,  45, 112,
              180, 337, 135, 157,
               90, 202, 225, 247,
-             270,  67, 315, 292 ]
+             270,  67, 315, 292, 'fzp' ]
 
 # See https://plotly.com/python/imshow/
 # Consider xarray:
@@ -65,17 +65,26 @@ def scale_corr(img):
     ctr = ctr.reshape(s0[:2])
     return img.reshape(s0), ctr
 
-def mk_fig2(contour=True):
+def mk_fig2(contour=False):
     img = np.load("correl.npy")
     img, corr = scale_corr(img)
+    print("Loaded correl. array with shape:")
+    print(img.shape)
 
     img = np.transpose(img, (0,2,1,3))
+    # scale ea. detector-detector group by its max
+    for u in img:
+        for v in u:
+            m = v.max()
+            if m > 0:
+                v /= m
+    #img = np.log( img + 1e-8 )
     fig = px.imshow(img, aspect='equal',
                     color_continuous_scale='gray',
                     animation_frame=0,
                     facet_col=1,
                     facet_col_wrap=4,
-                    #binary_string=True,
+                    binary_string=True,
                     labels={'facet_col':'detector'},
                     origin='lower')
     # Set facet titles
@@ -134,13 +143,13 @@ def plot_diags():
     return fig
 
 def main(debug: Optional[bool] = False,
-         reload: Optional[bool] = True):
+         reload: Optional[bool] = False):
     app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
     app.layout = dbc.Container([
         html.H1("Time-of-flight correlation"),
-        dcc.Graph(figure=mk_fig()),
-        dcc.Graph(figure=plot_diags()),
+        dcc.Graph(figure=mk_fig2()),
+        #dcc.Graph(figure=plot_diags()),
         #dbc.Row([dbc.Col([mk_card(i,j)]) for j in range(4)]) \
         #    for i in reversed(range(4))
     ])
