@@ -13,6 +13,8 @@ from lclstream.stream_utils import clock
 
 from ..combine import Batch
 
+run = typer.Typer(pretty_exceptions_enable=False)
+
 # Detector layout for plots:
 ids = [  0,  22,  45, 112,
        180, 337, 135, 157,
@@ -38,6 +40,7 @@ def create_hist(tofs, start, stop, nbins):
     counts, _ = np.histogram(tofs, bins=nbins, range=(start,stop))
     return counts
 
+@run.command()
 def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
              dial: Annotated[Optional[str], typer.Option()] = None,
              start: Optional[int] = 4500,
@@ -122,6 +125,3 @@ def plot_counts(x, hists, nev, ports):
 
     print("Saving tof_hist.svg", flush=True)
     plt.savefig("tof_hist.svg")
-
-def run():
-    typer.run(tof_hist)
