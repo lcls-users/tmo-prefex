@@ -33,24 +33,10 @@ def main(nshots:int,runnums:List[int]):
     #### CONFIGURATION ####
     #######################
     cfgname = '%s/config.yaml'%(os.environ.get('configpath'))
-    configs = Config(is_fex=True)
-    params = configs.writeconfigs(cfgname).getparams()
-    is_fex = params['is_fex']
-    t0s = params['t0s']
-    logicthresh = params['logicthresh']
-    offsets = params['offsets']
+    is_fex = True 
+    inflate = 2
+    expand = 2
 
-    nr_expand = params['expand']
-    inflate = params['inflate']
-
-    '''
-    spect = [Vls(params['vlsthresh']) for r in runnums]
-    _ = [s.setwin(params['vlswin'][0],params['vlswin'][1]) for s in spect]
-    #_ = [s.setthresh(params['vlsthresh']) for s in spect]
-    ebunch = [Ebeam() for r in runnums]
-    gmd = [Gmd() for r in runnums]
-    _ = [e.setoffset(params['l3offset']) for e in ebunch]
-    '''
     runhsd=True
     rungmd=True
     runpiranha=True
@@ -59,14 +45,6 @@ def main(nshots:int,runnums:List[int]):
     runvls=False
     runebeam=False
     runxtcav=False
-
-    '''
-    timings = []
-    vlss = []
-    ebeams = []
-    xtcavs = []
-    '''
-
 
 
     ###################################
@@ -118,7 +96,7 @@ def main(nshots:int,runnums:List[int]):
                 chankeys[rkey].update({hsdname:{}})
                 for i,k in enumerate(list(hsds[rkey][hsdname].raw._seg_configs().keys())):
                     chankeys[rkey][hsdname].update({k:k}) # this we may want to replace with the PCIe address id or the HSD serial number.
-                    port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=nr_expand)})
+                    port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_name(hsdname)
                     port[rkey][hsdname][k].set_logicthresh(-1*(1<<10))
                     if is_fex:
