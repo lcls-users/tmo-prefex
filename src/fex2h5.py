@@ -66,6 +66,7 @@ def main(nshots:int,runnums:List[int]):
     gmdnames = {}
     pirnames = {}
     for r in runnums:
+        chunk = 0
         run = next(ds.runs())
         rkey = run.runnum
         port.update({rkey:{}})
@@ -80,7 +81,7 @@ def main(nshots:int,runnums:List[int]):
 
         chankeys.update({rkey:{}})
         detslist.update({rkey:[s for s in run.detnames]})
-        outnames.update({rkey:'%s/hits.%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
+        outnames.update({rkey:'%s/hits.%s.%s'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
 
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
@@ -270,7 +271,7 @@ def main(nshots:int,runnums:List[int]):
                         for hsdname in hsds[rkey].keys():
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
-
+            '''
             if eventnum > 1 and eventnum <1000 and eventnum%100==0:
                 with h5py.File(outnames[rkey],'w') as f:
                     print('writing to %s'%outnames[rkey])
@@ -280,9 +281,10 @@ def main(nshots:int,runnums:List[int]):
                         Gmd.update_h5(f,xray,gmdEvents)
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
-
-            elif eventnum>900 and eventnum%1000==0:
-                with h5py.File(outnames[rkey],'w') as f:
+            '''
+            filename_save = outnames[rkey]+"_"+str(chunk)+".h5"
+            if eventnum>1 and eventnum%1000==0:
+                with h5py.File(filename_save,'w') as f:
                     print('writing to %s'%outnames[rkey])
                     if runhsd:
                         Port.update_h5(f,port,hsdEvents)
@@ -290,7 +292,9 @@ def main(nshots:int,runnums:List[int]):
                         Gmd.update_h5(f,xray,gmdEvents)
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
-
+            
+            elif eventnum > 10000 and eventnum % 10000:
+                chunk += 1
         # end event loop
 
  
