@@ -1,13 +1,14 @@
 #!/sdf/group/lcls/ds/ana/sw/conda2/inst/envs/ps-4.6.3/bin/python3
 
 import psana
+from collections import deque
 import numpy as np
 import sys
 import re
 import h5py
 import os
 import socket
-
+import objsize
 from typing import Type,List
 
 from Ports import *
@@ -18,10 +19,7 @@ from Spect import *
 from Config import Config
 from utils import *
 import yaml
-
-
-
-
+import objsize
 def main(nshots:int,runnums:List[int]):
   
     outnames = {}
@@ -81,8 +79,7 @@ def main(nshots:int,runnums:List[int]):
 
         chankeys.update({rkey:{}})
         detslist.update({rkey:[s for s in run.detnames]})
-        outnames.update({rkey:'%s/hits.%s.%s'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
-
+        outnames.update({rkey:'%s/hits.%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
         pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
@@ -142,10 +139,10 @@ def main(nshots:int,runnums:List[int]):
         spectEvents = []
 
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
-
         for evt in run.events():
             completeEvent:List[bool] = [True]
             if eventnum > nshots:
+                print("done")
                 break
 
             #test readbacks for each of detectors for given event
@@ -255,7 +252,6 @@ def main(nshots:int,runnums:List[int]):
 
             eventnum += 1
 
-
             if runhsd:
                 if eventnum<2:
                     for hsdname in hsds[rkey].keys():
@@ -263,6 +259,7 @@ def main(nshots:int,runnums:List[int]):
                 if eventnum<100 and eventnum%10==0: 
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
+
                 elif eventnum<1000 and eventnum%25==0: 
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
@@ -271,19 +268,10 @@ def main(nshots:int,runnums:List[int]):
                         for hsdname in hsds[rkey].keys():
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
-            '''
-            if eventnum > 1 and eventnum <1000 and eventnum%100==0:
-                with h5py.File(outnames[rkey],'w') as f:
-                    print('writing to %s'%outnames[rkey])
-                    if runhsd:
-                        Port.update_h5(f,port,hsdEvents)
-                    if rungmd:
-                        Gmd.update_h5(f,xray,gmdEvents)
-                    if runpiranha:
-                        Spect.update_h5(f,spect,spectEvents)
-            '''
-            filename_save = outnames[rkey]+"_"+str(chunk)+".h5"
+
+            filename_save = outnames[rkey][:-3]+"_"+str(chunk)+".h5"
             if eventnum>1 and eventnum%1000==0:
+                # print("chunk = ", chunk, " Port size: ", objsize.get_deep_size(port), " Gmd size: ", objsize.get_deep_size(xray), " Spect size: ", objsize.get_deep_size(spect))
                 with h5py.File(filename_save,'w') as f:
                     print('writing to %s'%outnames[rkey])
                     if runhsd:
@@ -293,8 +281,23 @@ def main(nshots:int,runnums:List[int]):
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
             
-            if eventnum > 10000 and eventnum % 10000:
-                Port.initState = True
+            if eventnum >= 10000 and eventnum % 10000==0:
+                # print("---------------------------------------------------------------------")
+                for hsdname in hsdnames[rkey]:
+                    for k in chankeys[rkey][hsdname]:
+                        ind_port = port[rkey][hsdname][k] 
+
+                        ind_port.reset()
+
+
+                if rungmd and all(completeEvent):
+                    for gmdname in gmdnames[rkey]:
+                        xray[rkey][gmdname].reset()
+                
+                for pirname in pirnames[rkey]:
+                    if runpiranha and pirname in detslist[rkey]:
+                        spect[rkey][pirname].reset()
+
                 chunk += 1
         # end event loop
 
@@ -302,6 +305,7 @@ def main(nshots:int,runnums:List[int]):
 
     print("Hello, I'm done now.  Have a most excellent day!")
     return
+
 
 
 
