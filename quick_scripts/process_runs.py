@@ -45,7 +45,7 @@ def main():
     parser.add_argument('--batch_size', type=int, default=2048, help='Batch size for processing data (optional)')
     parser.add_argument('--sample_size', type=int, default=None, help='Subsample size. If not provided, get all data.')
     args = parser.parse_args()
-
+    print("parsed args")
     # Process retardation values
     if len(args.retardations) == 1:
         retardations = args.retardations * len(args.runs)
