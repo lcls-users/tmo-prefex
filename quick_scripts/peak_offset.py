@@ -70,7 +70,7 @@ def convert_data_to_energy(data_dict, retardations, ports):
             data_dict[port] = energy_data
     return data_dict
 
-def find_t0(data_dict, ports, height_t0, distance_t0, prominence_t0, save_path):
+def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
     t0s = []
@@ -113,14 +113,14 @@ def find_t0(data_dict, ports, height_t0, distance_t0, prominence_t0, save_path):
         max_height = hist[t0_bin] * 5
 
         # Plot histogram
-        ax.stairs(hist_window, bins_window, label=f'Run {run}, Port {port}')
+        ax.stairs(hist_window, bins_window, label=f'Port {port}')
         # Plot t0 as dashed red line
         t0_label = f't0 = {t0:.4f} µs'
         ax.axvline(x=t0, linestyle='--', color='red', label=t0_label)
         ax.set_ylim(0, max_height)
 
         # Set labels and title
-        ax.set_title(f'Port {port}', fontsize=14)
+        ax.set_title(f'Run {run}, Retardation {retardation}, Port {port}', fontsize=14)
         ax.set_xlabel('Time of Flight (µs)', fontsize=12)
         ax.set_ylabel('Counts', fontsize=12)
         ax.legend(fontsize=10)
@@ -214,7 +214,7 @@ def plot_ports(data_dict, ports, window_range, height, distance, prominence, ene
     else:
         plt.show()
 
-def plot_spectra(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
+def plot_spectra(data_dict, run, retardation, ports, window_range, height, distance, prominence, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
 
@@ -274,7 +274,7 @@ def plot_spectra(data_dict, ports, window_range, height, distance, prominence, e
                         arrowprops=dict(arrowstyle='->', color='red'))
 
         # Set labels and title
-        ax.set_title(f'Port {port}', fontsize=14)
+        ax.set_title(f'Run {run}, Retardation {retardation}, Port {port}', fontsize=14)
         ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel('Normalized Counts', fontsize=12)
         ax.legend(fontsize=10)
@@ -426,6 +426,7 @@ def main():
     if args.find_t0:
         t0s = find_t0(
             data_dict=data_dict,
+            run=args.run_num,
             ports=args.ports,
             height_t0=args.height_t0,
             distance_t0=args.distance_t0,
@@ -464,6 +465,8 @@ def main():
     if args.plot_spectra:
         plot_spectra(
             data_dict=data_dict,
+            run=args.run_num,
+            retardation=args.retardation,
             ports=args.ports,
             window_range=args.window_range,
             height=args.height,
