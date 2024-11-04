@@ -65,7 +65,10 @@ class PassThroughQ(Quantizer[Any]):
             print(m, start, end)
             print(m+start, m+end)
             m = int(m)
-            A[i, 0:end-start] = vals[m+start:m+end]
+            try:
+                A[i, 0:end-start] = vals[m+start:m+end]
+            except ValueError:
+                pass
 
 class PackedQuantizer(Quantizer[xp.ndarray]):
     """ Quantize "packed" data, where:

@@ -2,6 +2,7 @@ from typing import List, Optional
 from typing_extensions import Annotated
 from pathlib import Path
 
+import io
 import stream
 import h5py
 import typer
