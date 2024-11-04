@@ -22,7 +22,7 @@ def append_to_save_path(save_path, suffix):
     else:
         return None
 
-def load_and_preprocess_data(run, ports):
+def load_and_preprocess_data(run, ports, sample_size=None):
     data_dict = {}
     data_path = '/sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/preproc/v2'
     h5_file_path = os.path.join(data_path, f'run{run}_v2.h5')
@@ -39,7 +39,10 @@ def load_and_preprocess_data(run, ports):
             if dataset_name not in hf.keys():
                 print(f"Dataset '{dataset_name}' not found in HDF5 file.")
                 continue
-            tof_data = hf[dataset_name][()]
+            if sample_size:
+                tof_data = hf[dataset_name][:sample_size]
+            else:
+                tof_data = hf[dataset_name][()]
             print(f"Loaded TOF data from dataset '{dataset_name}' in '{h5_file_path}'.")
 
             # Convert to microseconds
@@ -61,11 +64,11 @@ def subtract_t0(data_dict, t0s, ports):
             data_dict[port] = data
     return data_dict
 
-def convert_data_to_energy(data_dict, retardations, ports):
+def convert_data_to_energy(data_dict, retardations, ports, batch_size=2048):
     for port, retardation in zip(ports, retardations):
         data = data_dict.get(port)
         if data is not None and len(data) > 0:
-            energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=1024)
+            energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
             data_dict[port] = energy_data
     return data_dict
 
@@ -135,7 +138,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
     else:
         plt.show()
 
-    return t0s
+    return fig, t0s
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
@@ -213,7 +216,7 @@ def plot_ports(data_dict, ports, window_range, height, distance, prominence, ene
     else:
         plt.show()
 
-def plot_spectra(data_dict, run, retardation, ports, window_range, height, distance, prominence, energy_flag, save_path):
+def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height, distance, prominence, bin_width, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
 
@@ -228,7 +231,7 @@ def plot_spectra(data_dict, run, retardation, ports, window_range, height, dista
         if window_range is None:
             data_min = data.min()
             data_max = data.max()
-            window_range_port = (0, data_max)
+            window_range_port = (data_min, data_max)
         else:
             window_range_port = window_range
 
@@ -240,12 +243,8 @@ def plot_spectra(data_dict, run, retardation, ports, window_range, height, dista
             continue
 
         # Create histogram
-        if energy_flag:
-            xlabel = 'Energy (eV)'
-            bins = np.linspace(data_in_range.min(), data_in_range.max(), 5000)
-        else:
-            xlabel = 'Time of Flight (µs)'
-            bins = np.linspace(0, 2, 5000)
+        xlabel = 'Energy (eV)' if energy_flag else 'Time of Flight (µs)'
+        bins = np.arange(window_range_port[0], window_range_port[1] + bin_width, bin_width)
 
         counts, bin_edges = np.histogram(data_in_range, bins=bins)
 
@@ -273,7 +272,9 @@ def plot_spectra(data_dict, run, retardation, ports, window_range, height, dista
                         arrowprops=dict(arrowstyle='->', color='red'))
 
         # Set labels and title
-        ax.set_title(f'Run {run}, Retardation {retardation}, Port {port}', fontsize=14)
+        t0_value = t0s[idx] if t0s is not None and t0s[idx] is not None else 'N/A'
+        retardation_value = retardations[idx] if retardations is not None else 'N/A'
+        ax.set_title(f'Run {run}, Retardation {retardation_value}, Port {port}, t0={t0_value}', fontsize=10)
         ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel('Normalized Counts', fontsize=12)
         ax.legend(fontsize=10)
@@ -285,9 +286,11 @@ def plot_spectra(data_dict, run, retardation, ports, window_range, height, dista
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path)
-        print(f"Plot saved to '{save_path}'.")
+        print(f"Spectra Plot saved to '{save_path}'.")
     else:
         plt.show()
+    return fig
+
 
 def plot_spectra_waterfall(data_dict, ports, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path):
     fig, ax = plt.subplots(figsize=(10, 6))
