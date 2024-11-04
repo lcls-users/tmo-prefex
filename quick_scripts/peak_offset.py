@@ -65,8 +65,7 @@ def convert_data_to_energy(data_dict, retardations, ports):
     for port, retardation in zip(ports, retardations):
         data = data_dict.get(port)
         if data is not None and len(data) > 0:
-            tof_data = data * 1e-6  # Convert back to seconds for energy conversion
-            energy_data = convert_tof_to_energy(tof_data, retardation=retardation, batch_size=1024)
+            energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=1024)
             data_dict[port] = energy_data
     return data_dict
 
