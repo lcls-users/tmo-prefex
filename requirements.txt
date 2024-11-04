@@ -1,3 +1,7 @@
 pynng
 pydantic>=2.0
+pyyaml
 git+https://github.com/frobnitzem/stream.py@v1.0.0
+typer
+git+https://github.com/lcls-users/lclstream.git
+importlib-metadata>=6.8.0
