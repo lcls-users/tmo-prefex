@@ -42,7 +42,7 @@ class Spect:
         self.thresh = thresh
         self.winstart = 0
         self.winstop = 1<<11
-        self.processAlgo = 'piranha'
+        self.processAlgo = 'piranha_slim' # 'piranha'
         return
     
     def reset(self):
@@ -95,7 +95,7 @@ class Spect:
                 grpspc.create_dataset('events',data=spcEvents)
         return
 
-    def setProcessAlgo(self,alg='pirnaha'):
+    def setProcessAlgo(self,alg='piranha'):
         self.processAlgo = alg
 
     def get_runstr(self):

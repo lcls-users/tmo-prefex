@@ -15,11 +15,10 @@ def main():
         runstr = [k for k in f.keys()][0]
         detstr = 'mrco_hsd'
         hsd = f[runstr][detstr]
+        fzp = f[runstr]['spect']
+        xgmd = f[runstr]['xgmd']
         ports = [p for p in hsd.keys()]
-        #scramble = [p for p in hsd.keys()]
-        #np.random.shuffle(scramble)
         portnums = np.sort([int(re.search('_(\d+)$',k).group(1)) for k in ports])
-        #portnums = [int(re.search('_(\d+)$',k).group(1)) for k in scramble]
         print("portnums:\t",portnums)
         for i,p in enumerate(ports):
             t = hsd[p]['tofs'][()]
@@ -30,7 +29,6 @@ def main():
 
     fig,axs = plt.subplots(nrows=4, ncols=4, figsize=(25, 24))
     for i,p in enumerate(hist.keys()):
-    #for i,p in enumerate(scramble):
         col = i%4
         row = i>>2
         axs[row,col].stairs(hist[p][11000:15000],label=p)
