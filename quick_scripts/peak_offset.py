@@ -22,7 +22,7 @@ def append_to_save_path(save_path, suffix):
     else:
         return None
 
-def load_and_preprocess_data(run, ports):
+def load_and_preprocess_data(run, ports, subsample=1024):
     data_dict = {}
     data_path = '/sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/preproc/v2'
     h5_file_path = os.path.join(data_path, f'run{run}_v2.h5')
@@ -39,7 +39,7 @@ def load_and_preprocess_data(run, ports):
             if dataset_name not in hf.keys():
                 print(f"Dataset '{dataset_name}' not found in HDF5 file.")
                 continue
-            tof_data = hf[dataset_name][()]
+            tof_data = hf[dataset_name][:subsample]
             print(f"Loaded TOF data from dataset '{dataset_name}' in '{h5_file_path}'.")
 
             # Convert to microseconds
@@ -70,7 +70,7 @@ def convert_data_to_energy(data_dict, retardations, ports):
             data_dict[port] = energy_data
     return data_dict
 
-def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
+def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path, plot=False):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
     t0s = []
@@ -133,8 +133,10 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
     if save_path:
         plt.savefig(save_path)
         print(f"Plot saved to '{save_path}'.")
-    else:
+    elif plot:
         plt.show()
+    else:
+        print("Done with calculating T0s")
 
     return t0s
 
@@ -417,7 +419,7 @@ def main():
         return
 
     # Load and preprocess data
-    data_dict = load_and_preprocess_data(args.run_num, args.ports)
+    data_dict = load_and_preprocess_data(args.run_num, args.ports, subsample=1024*4)
     if data_dict is None:
         return
 
@@ -427,6 +429,7 @@ def main():
         t0s = find_t0(
             data_dict=data_dict,
             run=args.run_num,
+            retardation=args.retardation,
             ports=args.ports,
             height_t0=args.height_t0,
             distance_t0=args.distance_t0,
