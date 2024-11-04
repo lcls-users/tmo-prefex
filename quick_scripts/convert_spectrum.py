@@ -38,13 +38,12 @@ def parse_params_line(params_line):
                     params_dict[key] = value
     return params_dict
 
-def convert_tof_to_energy(tof_array, t0, retardation, batch_size=1024):
+def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
     """
     Converts a TOF array to an energy spectrum.
 
     Parameters:
         tof_array (np.ndarray): Input time-of-flight array.
-        t0 (float): The t0 value to subtract from TOF data.
         retardation (float): Retardation value.
         batch_size (int): Batch size for processing data.
 
@@ -78,17 +77,11 @@ def convert_tof_to_energy(tof_array, t0, retardation, batch_size=1024):
         # Extract batch
         tof_batch = tof_array[i:i+batch_size]
 
-        # Preprocess data
-        hist_t0 = tof_batch - t0
-        hist_t0 = hist_t0[hist_t0 > 0] * 1e6  # Keep positive values and convert to microseconds
-        if hist_t0.size == 0:
-            continue
-
         # Prepare input array
-        retardation_col = np.full_like(hist_t0, retardation)
-        mid1_ratio_col = np.full_like(hist_t0, 0.11248)  # Placeholder values
-        mid2_ratio_col = np.full_like(hist_t0, 0.1354)   # Placeholder values
-        input_array = np.column_stack([retardation_col, mid1_ratio_col, mid2_ratio_col, hist_t0]).astype(np.float32)
+        retardation_col = np.full_like(tof_batch, retardation)
+        mid1_ratio_col = np.full_like(tof_batch, 0.11248)  # Placeholder values
+        mid2_ratio_col = np.full_like(tof_batch, 0.1354)   # Placeholder values
+        input_array = np.column_stack([retardation_col, mid1_ratio_col, mid2_ratio_col, tof_batch]).astype(np.float32)
 
         # Make predictions
         y_pred_batch = main_model.predict(input_array, batch_size=batch_size).flatten()
