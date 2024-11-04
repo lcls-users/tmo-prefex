@@ -53,7 +53,6 @@ class Port:
     def get_runkey(self):
         return self.runkey
 
-
     @classmethod
     def slim_update_h5(cls,f,port,hsdEvents):
         print('slim_update_h5() needs to inherit only the hits and the params and only if fex/counting mode.\nCurrent mode will need to report all fex windows until CPA is run.')

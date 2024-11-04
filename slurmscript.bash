@@ -1,7 +1,8 @@
 #!/usr/bin/bash
 
-#SBATCH --partition=roma
+#SBATCH --partition=milano
 #SBATCH --account=lcls:tmox1016823
+#SBATCH --reservation=lcls:earlyscience
 #SBATCH --job-name=fex2h5
 #SBATCH --output=../output-%j.stdout
 #SBATCH --error=../output-%j.errout

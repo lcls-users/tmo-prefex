@@ -129,23 +129,12 @@ def main(nshots:int,runnums:List[int]):
                     spect[rkey][pirname].setProcessAlgo('piranha')
             else:
                 runpiranha = False
-
         init = True 
         hsdEvents = []
         gmdEvents = []
         spectEvents = []
+
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
-
-        '''
-        # from Mona for timestamps
-        timestamps = np.array([4194783241933859761,4194783249723600225,4194783254218190609,4194783258712780993], dtype=np.uint64)
-        ds = DataSource(exp='tmoc00118', run=222, dir='/sdf/data/lcls/ds/prj/public01/xtc',timestamps=timestamps)
-        myrun = next(ds.runs())
-        opal = myrun.Detector('tmo_atmopal')
-        print(nevt, evt.timestamp, img.shape)
-        ts:np.uint64 = run.timestamp
-        '''
-
 
         for evt in run.events():
             completeEvent:List[bool] = [True]
@@ -256,9 +245,6 @@ def main(nshots:int,runnums:List[int]):
                         port[rkey][hsdname][key].set_initState(False)
                 for gmdname in xray[rkey].keys():
                     xray[rkey][gmdname].set_initState(False)
-                for pirname in spect[rkey].keys():
-                    spect[rkey][pirname].set_initState(False)
-
 
             eventnum += 1
 
@@ -298,21 +284,6 @@ def main(nshots:int,runnums:List[int]):
                         Gmd.update_h5(f,xray,gmdEvents)
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
-
-            '''
-            if eventnum%10000==0:
-                init = True 
-                hsdEvents = []
-                gmdEvents = []
-                spectEvents = []
-                print('resetting %s'%outnames[rkey])
-                if runhsd:
-                        Port.update_h5(f,port,hsdEvents)
-                    if rungmd:
-                        Gmd.update_h5(f,xray,gmdEvents)
-                    if runpiranha:
-                        Spect.update_h5(f,spect,spectEvents)
-                        '''
 
         # end event loop
 
