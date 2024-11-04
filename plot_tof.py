@@ -73,12 +73,13 @@ def mk_fig2(contour=False):
 
     img = np.transpose(img, (0,2,1,3))
     # scale ea. detector-detector group by its max
-    for u in img:
-        for v in u:
+    for i,u in enumerate(img):
+        for j,v in enumerate(u):
             m = v.max()
+            print(f"{i}:{j} {m}")
             if m > 0:
                 v /= m
-    #img = np.log( img + 1e-8 )
+    #img = np.log( img + 1e-3 )
     fig = px.imshow(img, aspect='equal',
                     color_continuous_scale='gray',
                     animation_frame=0,
