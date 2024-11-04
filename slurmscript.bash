@@ -6,7 +6,7 @@
 #SBATCH -x sdfmilan084
 #SBATCH --partition=milano
 #SBATCH --nodes 1
-#SBATCH --ntasks 64
+#SBATCH --ntasks 120
 #SBATCH --cpus-per-task=1
 #SBATCH -A lcls:tmox1016823
 #SBATCH -t 120
@@ -46,12 +46,12 @@ st=`date +%s`
 printf -v runstr "r%04d" $runnum
 
 # seems to include s000 .. s019
-if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
+#if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
     # If do right, no can defense.
     time mpirun fex2h5 $nshots $@
-else
-    echo "XTC2 file not found for run $expname:$runstr"
-fi
+#else
+#    echo "XTC2 file not found for run $expname:$runstr"
+#fi
 
 en=`date +%s`
 echo "Completed processing $nshots from $expname:$runnum in $((en-st)) sec."

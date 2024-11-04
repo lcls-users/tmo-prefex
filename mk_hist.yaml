@@ -28,7 +28,7 @@ name: mk_hist
 script: |
   echo Running $mpirun tof_hist --dial tcp://134.79.23.43:3000
   PATH=/lustre/polis/csc266/world-shared/schedulers/bin:$PATH
-  $mpirun tof_hist --dial tcp://134.79.23.43:3000
+  $mpirun tof_hist --start 5800 --stop 7500 --dial tcp://134.79.23.43:3000
 
 resources:
     duration: 30
