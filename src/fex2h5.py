@@ -145,7 +145,7 @@ def main(nshots:int,runnums:List[int]):
         ts:np.uint64 = run.timestamp
         '''
 
-        for evt in run.events():
+        for eventnum,evt in enumerate(run.events()):
             completeEvent:List[bool] = [True]
             if eventnum > nshots:
                 print("done")
@@ -259,8 +259,6 @@ def main(nshots:int,runnums:List[int]):
                     spect[rkey][pirname].set_initState(False)
 
 
-            eventnum += 1
-
             if runhsd:
                 if eventnum<2:
                     for hsdname in hsds[rkey].keys():
@@ -278,8 +276,8 @@ def main(nshots:int,runnums:List[int]):
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
 
-            filename_save = outnames[rkey][:-3]+"_"+str(chunk)+".h5"
             if eventnum>1 and eventnum%1000==0:
+                filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
                 with h5py.File(filename_save,'w') as f:
                     print('writing to %s'%filename_save)
                     if runhsd:
@@ -290,19 +288,27 @@ def main(nshots:int,runnums:List[int]):
                         Spect.update_h5(f,spect,spectEvents)
             
             if eventnum >= 10000 and eventnum % 10000==0:
-                if runhsd:
-                    for name in port[rkey].keys():
-                        for p in port[rkey][name].keys():
-                            port[rkey][hsdname][p].reset()
+                filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
+                with h5py.File(filename_save,'w') as f:
+                    print('writing to %s'%filename_save)
+                    if runhsd:
+                        Port.update_h5(f,port,hsdEvents)
+                        hsdEvents.clear()
+                        for name in port[rkey].keys():
+                            for p in port[rkey][name].keys():
+                                port[rkey][hsdname][p].reset()
 
-                if rungmd:
-                    for name in xray[rkey].keys():
-                        xray[rkey][name].reset()
-                
-                if runpiranha:
-                    for name in spect[rkey].keys():
-                        spect[rkey][pirname].reset()
-
+                    if rungmd:
+                        Gmd.update_h5(f,xray,gmdEvents)
+                        gmdEvents.clear()
+                        for name in xray[rkey].keys():
+                            xray[rkey][name].reset()
+                    
+                    if runpiranha:
+                        Spect.update_h5(f,spect,spectEvents)
+                        spectEvents.clear()
+                        for name in spect[rkey].keys():
+                            spect[rkey][pirname].reset()
                 chunk += 1
 
         # end event loop

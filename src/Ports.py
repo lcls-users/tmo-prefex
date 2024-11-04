@@ -58,10 +58,11 @@ class Port:
         self.addresses.clear()
         self.nedges.clear()
         self.slopes.clear()
-        self.e:List[np.uint32].clear()
-        self.de:List[np.int32].clear()
+        self.e.clear()
+        self.de.clear()
         self.ne = 0
         self.r.clear()
+        self.initState = True
 
 
     @classmethod
