@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from typing_extensions import Annotated
 import io
 from pathlib import Path
@@ -13,6 +13,7 @@ from lclstream.stream_utils import clock
 
 from ..combine import Batch
 from ..stream_utils import split
+from .correlate import shared_event_count
 
 run = typer.Typer(pretty_exceptions_enable=False)
 
@@ -41,18 +42,20 @@ def create_hist(tofs, start, stop, nbins):
     counts, _ = np.histogram(tofs, bins=nbins, range=(start,stop))
     return counts
 
+def load_h5_file(fname):
+    with h5py.File(fname) as f:
+        return Batch.from_h5(f)
+
 @run.command()
-def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
+def tof_hist(files: Annotated[Optional[List[Path]], typer.Argument()] = None,
              dial: Annotated[Optional[str], typer.Option()] = None,
              start: Optional[int] = 4500,
              stop: Optional[int] = 9000,
              nbins: Optional[int] = 1000,
             ):
 
-    if fname is not None:
-        with h5py.File(fname) as f:
-            batch = Batch.from_h5(f)
-            src = stream.Source([batch])
+    if files is not None:
+        src = stream.Source(files) >> stream.map(load_h5_file)
     elif dial is not None:
         src = puller(dial, 1) >> stream.map(load_h5) >> stream.filter(lambda x: x is not None)
     else:
@@ -65,11 +68,24 @@ def tof_hist(fname: Annotated[Optional[Path], typer.Argument()] = None,
     dets = [('mrco_hsd', i) for i in ids]
 
     x = get_xval(start, stop, nbins)
-    for (tofs, ned) in src >> split(accum_tofs(dets, start, stop, nbins),
-                                    accum_edges(dets)):
+    for (tofs, ned, AC) in src >> split(accum_tofs(dets, start, stop, nbins),
+                                    accum_edges(dets),
+                                    accum_shared(dets)):
         H, nev, M = tofs
         plot_counts(x, H, M, dets)
         plot_ned(ned)
+        np.save("shared.npy", AC[0])
+        np.save("ncorrel.npy", AC[1])
+
+@stream.stream
+def accum_shared(src, dets):
+    A = 0
+    C = 0
+    for batch in src:
+        X, Y = shared_event_count([batch[d] for d in dets])
+        A = A + X
+        C = C + Y
+        yield A, C
 
 @stream.stream
 def accum_edges(src, dets, nbins=30):
@@ -81,7 +97,11 @@ def accum_edges(src, dets, nbins=30):
 
         for idx in dets:
             nedges = batch[idx]['nedges']
-            ned[idx] += np.bincount(nedges.astype(int), minlength=nbins)
+            ans = np.bincount(nedges.astype(int), minlength=nbins)
+            if len(ans) > nbins:
+                print(f"max nedges = {len(ans)}! neglecting {ans[nbins:].sum()} high counts")
+                ans = ans[:nbins]
+            ned[idx] += ans
             # all events which did not define it implicitly have nedges=0
             ned[idx][0] += evt-len(nedges)
         yield ned

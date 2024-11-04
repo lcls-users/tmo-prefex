@@ -6,6 +6,7 @@ import io
 import stream
 import h5py
 import typer
+import numpy as np
 
 from lclstream.nng import puller
 from ..correlator import (
@@ -13,7 +14,6 @@ from ..correlator import (
     EventPackedQuantizer,
     PassThroughQ,
     correl, xp,
-    create_indices
 )
 
 run = typer.Typer(pretty_exceptions_enable=False)
@@ -23,17 +23,42 @@ ids = [  0,  22,  45, 112,
         90, 202, 225, 247,
        270,  67, 315, 292 ]
 
-def shared_event_count(data):
-    # Print out number of events that simultaneously activated
-    # each pair of detectors.
-    indices = create_indices([d['events'] for d in data])
-    print( len(indices) )
-    for i, u in enumerate(indices):
-        for j, v in enumerate(indices):
+def shared_event_count(data, join_key='events', vals='nedges'):
+    # Tabulate number of events that simultaneously activated
+    # each pair of detectors (A) as well as correlation between
+    # counts in detectors, \sum_ev n_i*n_j
+
+    N = len(data)
+    A = np.zeros((N,N))
+    C = np.zeros((N,N))
+    for i, a in enumerate(data):
+        for j, b in enumerate(data):
             if j < i:
                 continue
-            share = len(set(u) & set(v))
-            print(f"{i},{j} -- {share}")
+            ea = set(a[join_key])
+            eb = set(b[join_key])
+            share = list(ea & eb)
+            share.sort()
+            nshare = len(share)
+
+            inds = {e:i for i,e in enumerate(share)}
+
+            x = np.zeros(nshare, dtype=a[vals].dtype)
+            y = np.zeros(nshare, dtype=b[vals].dtype)
+            for e,n in zip(a[join_key], a[vals]):
+                if e in inds:
+                    x[inds[e]] += n
+            for e,n in zip(b[join_key], b[vals]):
+                if e in inds:
+                    y[inds[e]] += n
+            v = np.dot(x, y)
+
+            A[i,j] += nshare
+            C[i,j] += v
+            if i != j:
+                A[j,i] += nshare
+                C[j,i] += v
+    return A, C
 
 def load_h5(buf: bytes) -> h5py.File:
     try:

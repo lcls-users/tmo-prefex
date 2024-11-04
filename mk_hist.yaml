@@ -28,7 +28,13 @@ name: mk_hist
 script: |
   echo Running $mpirun tof_hist --dial tcp://134.79.23.43:3000
   PATH=/lustre/polis/csc266/world-shared/schedulers/bin:$PATH
-  $mpirun tof_hist --start 5800 --stop 7500 --dial tcp://134.79.23.43:3000
+  $mpirun tof_hist --start 5800 --stop 8000 --nbins 1100 --dial tcp://134.79.23.43:3000
+
+  BASE=/lustre/polis/csc266/scratch/99r/tmox/tmo-prefex/quick_scripts
+  python $BASE/plot_2d.py shared \
+        --title 'Co-occurence of "hit" events across detectors.'
+  python $BASE/plot_2d.py ncorrel --norm \
+        --title 'Cosine correlation of counts/event.'
 
 resources:
     duration: 30
