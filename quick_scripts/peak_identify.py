@@ -103,7 +103,7 @@ def plot_kinetic_energy_histogram(runs, ports, retardations, energy_data_dict,
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
             # Plot histogram
-            ax.plot(bin_centers, counts_offset, drawstyle='steps-mid', label=f'Port {port}', color=colors[idx])
+            ax.plot(bin_centers, counts_offset, drawstyle='steps-mid', label=f'Port {port}, retardation {retardation}', color=colors[idx])
 
             # Adjust peak counts for plotting (add offset)
             peak_counts_offset = counts[peaks]
