@@ -44,6 +44,15 @@ class Spect:
         self.winstop = 1<<11
         self.processAlgo = 'piranha_slim' # 'piranha'
         return
+    
+    def reset(self):
+        self.vc.clear()
+        self.vs.clear()
+        self.vw.clear()
+        self.vstarts.clear()
+        self.vlens.clear()
+        self.v.clear()
+        self.vsize = int(0)
 
     @classmethod
     def slim_update_h5(cls,f,spect,vlsEvents):
