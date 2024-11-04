@@ -8,7 +8,7 @@ import re
 import h5py
 import os
 import socket
-import objsize
+#import objsize
 from typing import Type,List
 
 from Ports import *
@@ -19,7 +19,7 @@ from Spect import *
 from Config import Config
 from utils import *
 import yaml
-import objsize
+
 def main(nshots:int,runnums:List[int]):
   
     outnames = {}
@@ -280,9 +280,8 @@ def main(nshots:int,runnums:List[int]):
 
             filename_save = outnames[rkey][:-3]+"_"+str(chunk)+".h5"
             if eventnum>1 and eventnum%1000==0:
-                # print("chunk = ", chunk, " Port size: ", objsize.get_deep_size(port), " Gmd size: ", objsize.get_deep_size(xray), " Spect size: ", objsize.get_deep_size(spect))
                 with h5py.File(filename_save,'w') as f:
-                    print('writing to %s'%outnames[rkey])
+                    print('writing to %s'%filename_save)
                     if runhsd:
                         Port.update_h5(f,port,hsdEvents)
                     if rungmd:
@@ -291,20 +290,17 @@ def main(nshots:int,runnums:List[int]):
                         Spect.update_h5(f,spect,spectEvents)
             
             if eventnum >= 10000 and eventnum % 10000==0:
-                # print("---------------------------------------------------------------------")
-                for hsdname in hsdnames[rkey]:
-                    for k in chankeys[rkey][hsdname]:
-                        ind_port = port[rkey][hsdname][k] 
+                if runhsd:
+                    for name in port[rkey].keys():
+                        for p in port[rkey][name].keys():
+                            port[rkey][hsdname][p].reset()
 
-                        ind_port.reset()
-
-
-                if rungmd and all(completeEvent):
-                    for gmdname in gmdnames[rkey]:
-                        xray[rkey][gmdname].reset()
+                if rungmd:
+                    for name in xray[rkey].keys():
+                        xray[rkey][name].reset()
                 
-                for pirname in pirnames[rkey]:
-                    if runpiranha and pirname in detslist[rkey]:
+                if runpiranha:
+                    for name in spect[rkey].keys():
                         spect[rkey][pirname].reset()
 
                 chunk += 1
