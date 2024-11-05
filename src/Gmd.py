@@ -12,7 +12,6 @@ class Gmd:
 
     def reset(self):
         self.en.clear()
-        self.initState = True
 
     @classmethod
     def slim_update_h5(cls,f,gmd,gmdEvents):

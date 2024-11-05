@@ -8,7 +8,7 @@
 #SBATCH --error=../output-%j.errout
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=32g
+#SBATCH --mem-per-cpu=8g
 #SBATCH --time=0-05:00:00
 #SBATCH --mail-user=coffee@slac.stanford.edu
 #SBATCH --mail-type=FAIL
@@ -21,10 +21,8 @@ fi
 
 export expname=$1
 export runnum=$2
-export runstr="r$(printf "%04i" $2)"
-#export nshots=2000
-#export nshots=250000
 export nshots=$3
+export runstr="r$(printf "%04i" $2)"
 echo "trying to run $expname $runstr $nshots"
 export datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
 export finalpath=/sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/$runstr

@@ -53,7 +53,6 @@ class Spect:
         self.vlens.clear()
         self.v.clear()
         self.vsize = int(0)
-        self.initState = True
 
     @classmethod
     def slim_update_h5(cls,f,spect,vlsEvents):

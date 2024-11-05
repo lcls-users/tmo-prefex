@@ -62,7 +62,6 @@ class Port:
         self.de.clear()
         self.ne = 0
         self.r.clear()
-        self.initState = True
 
 
     @classmethod
