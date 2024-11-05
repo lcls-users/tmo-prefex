@@ -136,7 +136,7 @@ def main():
             plot_spectra(
                 data_dict=data_dict,
                 run=run,
-                retardation=retardation,
+                retardations=[retardation]*len(args.ports),
                 t0s=t0s,
                 ports=args.ports,
                 window_range=args.tof_window_range,
@@ -153,7 +153,7 @@ def main():
             plot_spectra(
                 data_dict=data_dict_energy,
                 run=run,
-                retardation=retardation,
+                retardations=[retardation]*len(args.ports),
                 t0s=t0s,
                 ports=args.ports,
                 window_range=args.energy_window_range,
