@@ -154,7 +154,8 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
         print(f"t0 Plot saved to '{save_path}'.")
     else:
         plt.show()
-    return fig, t0s
+    plt.close(fig)
+    return t0
 
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
@@ -306,7 +307,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height,
         print(f"Spectra Plot saved to '{save_path}'.")
     else:
         plt.show()
-    return fig
+    plt.close(fig)
 
 
 def plot_spectra_waterfall(data_dict, ports, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path):
