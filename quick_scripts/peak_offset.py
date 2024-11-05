@@ -155,7 +155,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
     else:
         plt.show()
     plt.close(fig)
-    return t0
+    return t0s
 
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):

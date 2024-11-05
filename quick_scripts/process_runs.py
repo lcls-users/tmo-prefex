@@ -48,122 +48,122 @@ def main():
         print("Error: Number of retardation values must be either 1 or match the number of runs.")
         return
 
-        # Loop through each run
-        for idx, run in enumerate(args.run_nums):
-            print(f"\nProcessing Run {run}...")
-            # Get the retardation for this run
-            retardation = retardations[idx]
+    # Loop through each run
+    for idx, run in enumerate(args.runs):
+        print(f"\nProcessing Run {run}...")
+        # Get the retardation for this run
+        retardation = retardations[idx]
 
-            # Load and preprocess data
-            data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
-            if data_dict is None:
+        # Load and preprocess data
+        data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
+        if data_dict is None:
+            continue
+
+        # Find t0s if needed
+        t0s = None
+        if args.find_t0:
+            # Generate t0 plot and save to PDF
+            t0_save_path = os.path.join(args.save_path, f"run{run}_t0.pdf") if args.save_path else None
+            t0s = find_t0(
+                data_dict=data_dict,
+                run=run,
+                retardation=retardation,
+                ports=args.ports,
+                height_t0=args.height_t0,
+                distance_t0=args.distance_t0,
+                prominence_t0=args.prominence_t0,
+                save_path=t0_save_path
+            )
+            # Subtract t0s and mask negative values again
+            data_dict = subtract_t0(data_dict, t0s, args.ports)
+        elif args.t0s is not None:
+            if len(args.t0s) != len(args.ports):
+                print("Error: Number of t0s must match number of ports.")
                 continue
+            t0s = args.t0s
+            # Subtract t0s and mask negative values again
+            data_dict = subtract_t0(data_dict, t0s, args.ports)
+        else:
+            print("Error: t0s must be provided either via --t0s or by using --find_t0.")
+            continue
 
-            # Find t0s if needed
-            t0s = None
-            if args.find_t0:
-                # Generate t0 plot and save to PDF
-                t0_save_path = os.path.join(args.save_path, f"run{run}_t0.pdf") if args.save_path else None
-                t0s = find_t0(
-                    data_dict=data_dict,
-                    run=run,
-                    retardation=retardation,
-                    ports=args.ports,
-                    height_t0=args.height_t0,
-                    distance_t0=args.distance_t0,
-                    prominence_t0=args.prominence_t0,
-                    save_path=t0_save_path
-                )
-                # Subtract t0s and mask negative values again
-                data_dict = subtract_t0(data_dict, t0s, args.ports)
-            elif args.t0s is not None:
-                if len(args.t0s) != len(args.ports):
-                    print("Error: Number of t0s must match number of ports.")
-                    continue
-                t0s = args.t0s
-                # Subtract t0s and mask negative values again
-                data_dict = subtract_t0(data_dict, t0s, args.ports)
-            else:
-                print("Error: t0s must be provided either via --t0s or by using --find_t0.")
-                continue
+        # Check if the converted HDF5 file exists
+        data_dict_energy = {}
+        if args.save_data_path:
+            save_file = os.path.join(args.save_data_path, f"run{run}_converted.h5")
+            converted_file_exists = os.path.exists(save_file)
+        else:
+            converted_file_exists = False
 
-            # Check if the converted HDF5 file exists
-            data_dict_energy = {}
-            if args.save_data_path:
-                save_file = os.path.join(args.save_data_path, f"run{run}_converted.h5")
-                converted_file_exists = os.path.exists(save_file)
-            else:
-                converted_file_exists = False
-
-            if converted_file_exists and not args.overwrite:
-                print(f"Converted data for run {run} already exists at '{save_file}'. Loading data.")
-                # Load data_dict_energy from the file
-                with h5py.File(save_file, 'r') as hf:
-                    for port in args.ports:
-                        dataset_name = f'pks_{port}'
-                        if dataset_name in hf:
-                            data_dict_energy[port] = hf[dataset_name][()]
-                        else:
-                            data_dict_energy[port] = None
-            else:
-                # Either overwrite is set, or the file does not exist
-                # Convert to energy and save data
-                data_dict_energy = {}
+        if converted_file_exists and not args.overwrite:
+            print(f"Converted data for run {run} already exists at '{save_file}'. Loading data.")
+            # Load data_dict_energy from the file
+            with h5py.File(save_file, 'r') as hf:
                 for port in args.ports:
-                    data = data_dict.get(port)
-                    if data is not None and len(data) > 0:
-                        print(f"Converting data for port {port} to energy...")
-                        batch_size = args.batch_size
-                        energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
-                        data_dict_energy[port] = energy_data
+                    dataset_name = f'pks_{port}'
+                    if dataset_name in hf:
+                        data_dict_energy[port] = hf[dataset_name][()]
                     else:
                         data_dict_energy[port] = None
+        else:
+            # Either overwrite is set, or the file does not exist
+            # Convert to energy and save data
+            data_dict_energy = {}
+            for port in args.ports:
+                data = data_dict.get(port)
+                if data is not None and len(data) > 0:
+                    print(f"Converting data for port {port} to energy...")
+                    batch_size = args.batch_size
+                    energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
+                    data_dict_energy[port] = energy_data
+                else:
+                    data_dict_energy[port] = None
 
-                # Save converted energy data to HDF5 file
-                if args.save_data_path:
-                    with h5py.File(save_file, 'w') as hf:
-                        for port in args.ports:
-                            energy_data = data_dict_energy.get(port)
-                            if energy_data is not None:
-                                hf.create_dataset(f'pks_{port}', data=energy_data)
-                                print(f"Saved energy data for port {port} to '{save_file}'.")
-                    print(f"All energy data saved to '{save_file}'.")
+            # Save converted energy data to HDF5 file
+            if args.save_data_path:
+                with h5py.File(save_file, 'w') as hf:
+                    for port in args.ports:
+                        energy_data = data_dict_energy.get(port)
+                        if energy_data is not None:
+                            hf.create_dataset(f'pks_{port}', data=energy_data)
+                            print(f"Saved energy data for port {port} to '{save_file}'.")
+                print(f"All energy data saved to '{save_file}'.")
 
-            # Generate plots if plotting flag is set
-            if args.plotting:
-                # Plot TOF spectra
-                tof_save_path = os.path.join(args.save_path, f"run{run}_tof.pdf") if args.save_path else None
-                plot_spectra(
-                    data_dict=data_dict,
-                    run=run,
-                    retardation=retardation,
-                    t0s=t0s,
-                    ports=args.ports,
-                    window_range=args.tof_window_range,
-                    height=args.height,
-                    distance=args.distance,
-                    prominence=args.prominence,
-                    bin_width=args.tof_bin_width,
-                    energy_flag=False,
-                    save_path=tof_save_path
-                )
+        # Generate plots if plotting flag is set
+        if args.plotting:
+            # Plot TOF spectra
+            tof_save_path = os.path.join(args.save_path, f"run{run}_tof.pdf") if args.save_path else None
+            plot_spectra(
+                data_dict=data_dict,
+                run=run,
+                retardation=retardation,
+                t0s=t0s,
+                ports=args.ports,
+                window_range=args.tof_window_range,
+                height=args.height,
+                distance=args.distance,
+                prominence=args.prominence,
+                bin_width=args.tof_bin_width,
+                energy_flag=False,
+                save_path=tof_save_path
+            )
 
-                # Plot energy spectra
-                energy_save_path = os.path.join(args.save_path, f"run{run}_energy.pdf") if args.save_path else None
-                plot_spectra(
-                    data_dict=data_dict_energy,
-                    run=run,
-                    retardation=retardation,
-                    t0s=t0s,
-                    ports=args.ports,
-                    window_range=args.energy_window_range,
-                    height=args.height,
-                    distance=args.distance,
-                    prominence=args.prominence,
-                    bin_width=args.energy_bin_width,
-                    energy_flag=True,
-                    save_path=energy_save_path
-                )
+            # Plot energy spectra
+            energy_save_path = os.path.join(args.save_path, f"run{run}_energy.pdf") if args.save_path else None
+            plot_spectra(
+                data_dict=data_dict_energy,
+                run=run,
+                retardation=retardation,
+                t0s=t0s,
+                ports=args.ports,
+                window_range=args.energy_window_range,
+                height=args.height,
+                distance=args.distance,
+                prominence=args.prominence,
+                bin_width=args.energy_bin_width,
+                energy_flag=True,
+                save_path=energy_save_path
+            )
 
 if __name__ == '__main__':
     main()
