@@ -73,7 +73,7 @@ def convert_data_to_energy(data_dict, retardations, ports, batch_size=2048):
             data_dict[port] = energy_data
     return data_dict
 
-def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path, plot=False):
+def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
     t0s = []
@@ -90,43 +90,59 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
         bins = np.linspace(0, 2, 5000)
         hist, bin_edges = np.histogram(data, bins=bins)
 
-        # Use height_t0, distance_t0, prominence_t0 in peak finding
-        pks, properties = find_peaks(hist, height=height_t0, distance=distance_t0, prominence=prominence_t0)
+        # Initialize peak height parameter
+        current_height = height_t0
 
-        if len(pks) == 0:
-            print(f"No peaks found for port {port}.")
+        t0_found = False
+        while not t0_found and current_height >= 5:
+            # Use current_height, distance_t0, prominence_t0 in peak finding
+            pks, properties = find_peaks(hist, height=current_height, distance=distance_t0, prominence=prominence_t0)
+
+            if len(pks) == 0:
+                print(f"No peaks found for port {port} with height {current_height}.")
+                if current_height > 5:
+                    current_height -= 2  # Reduce the height by 2
+                    if current_height < 5:
+                        current_height = 5  # Do not go below 5
+                else:
+                    break
+            else:
+                t0_found = True
+                # Proceed with processing
+                bin_width = bin_edges[1] - bin_edges[0]
+                t0_bin = pks[0]
+                t0 = bin_edges[t0_bin] + bin_width / 2
+                t0s.append(t0)  # t0 is in µs
+
+                # Adjust window around t0 peak
+                window_start = t0 - 0.025  # 0.025 µs before t0
+                window_end = t0 + 0.2      # 0.2 µs after t0
+
+                idx_start = np.searchsorted(bin_edges, window_start)
+                idx_end = np.searchsorted(bin_edges, window_end)
+                hist_window = hist[idx_start: idx_end]
+                bins_window = bin_edges[idx_start: idx_end+1]
+
+                # Adjust y-axis height to 5x the t0 peak height
+                max_height = hist[t0_bin] * 5
+
+                # Plot histogram
+                ax.stairs(hist_window, bins_window, label=f'Port {port}')
+                # Plot t0 as dashed red line
+                t0_label = f't0 = {t0:.4f} µs'
+                ax.axvline(x=t0, linestyle='--', color='red', label=t0_label)
+                ax.set_ylim(0, max_height)
+
+                # Set labels and title
+                ax.set_title(f'Run {run}, Retardation {retardation}, Port {port}', fontsize=14)
+                ax.set_xlabel('Time of Flight (µs)', fontsize=12)
+                ax.set_ylabel('Counts', fontsize=12)
+                ax.legend(fontsize=10)
+
+        if not t0_found:
+            print(f"Failed to find t0 for port {port} even after reducing height to {current_height}.")
             t0s.append(None)
-            continue
-
-        bin_width = bin_edges[1] - bin_edges[0]
-        t0_bin = pks[0]
-        t0 = bin_edges[t0_bin] + bin_width / 2
-        t0s.append(t0)  # t0 is in µs
-
-        # Adjust window around t0 peak
-        window_start = t0 - 0.025  # 0.025 µs before t0
-        window_end = t0 + 0.2      # 0.2 µs after t0
-
-        idx_start = np.searchsorted(bin_edges, window_start)
-        idx_end = np.searchsorted(bin_edges, window_end)
-        hist_window = hist[idx_start: idx_end]
-        bins_window = bin_edges[idx_start: idx_end+1]
-
-        # Adjust y-axis height to 5x the t0 peak height
-        max_height = hist[t0_bin] * 5
-
-        # Plot histogram
-        ax.stairs(hist_window, bins_window, label=f'Port {port}')
-        # Plot t0 as dashed red line
-        t0_label = f't0 = {t0:.4f} µs'
-        ax.axvline(x=t0, linestyle='--', color='red', label=t0_label)
-        ax.set_ylim(0, max_height)
-
-        # Set labels and title
-        ax.set_title(f'Run {run}, Retardation {retardation}, Port {port}', fontsize=14)
-        ax.set_xlabel('Time of Flight (µs)', fontsize=12)
-        ax.set_ylabel('Counts', fontsize=12)
-        ax.legend(fontsize=10)
+            # Optionally, you can plot an empty plot or skip plotting for this port
 
     # Hide any unused subplots
     total_subplots = 16
@@ -135,13 +151,11 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path)
-        print(f"Plot saved to '{save_path}'.")
-    elif plot:
-        plt.show()
+        print(f"t0 Plot saved to '{save_path}'.")
     else:
-        print("Done with calculating T0s")
-
+        plt.show()
     return fig, t0s
+
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
