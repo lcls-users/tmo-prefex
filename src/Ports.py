@@ -263,7 +263,6 @@ class Port:
         return self
 
     def process_fex2hits(self,slist,xlist):
-        baseline = 1<<13
         thise = []
         thisde = []
         r = []
@@ -273,8 +272,10 @@ class Port:
             return False
         elif len(slist)>2:
             for i,s in enumerate(slist[:-1]):
+                if i==0:
+                    self.baseline = sum(s[:1<<2])>>2
                 expandBits = 1
-                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),offset=2,expandBits=expandBits) # scan the logic vector for hits
+                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),base=self.baseline,offset=2,expandBits=expandBits) # scan the logic vector for hits
                 r = [0]*(len(logic)<<expandBits)
                 for ind in e:
                     r[ind] = 1

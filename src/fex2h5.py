@@ -100,7 +100,8 @@ def main(nshots:int,runnums:List[int]):
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)
-                        port[rkey][hsdname][k].set_logicthresh(-1*((int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.ymax) - int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.ymin))>>1))
+                        port[rkey][hsdname][k].set_baseline(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.corr.baseline)
+                        port[rkey][hsdname][k].set_logicthresh(int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.corr.baseline)-int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.ymax))
                     else:
                         port[rkey][hsdname][k].setRollOn(1<<6) 
                         port[rkey][hsdname][k].setRollOff(1<<6)
@@ -276,6 +277,7 @@ def main(nshots:int,runnums:List[int]):
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
 
+            '''
             if eventnum>1 and eventnum%1000==0:
                 filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
                 with h5py.File(filename_save,'w') as f:
@@ -286,6 +288,7 @@ def main(nshots:int,runnums:List[int]):
                         Gmd.update_h5(f,xray,gmdEvents)
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
+                        '''
             
             if eventnum >= 10000 and eventnum % 10000==0:
                 filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)

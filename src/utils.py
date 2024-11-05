@@ -74,9 +74,9 @@ def cfdLogic(s,thresh,offset=2):
         slopes += [s[stop+2]] #[res[stop]-res[stop-1]] 
     return tofs,slopes,np.uint16(len(tofs)),res
 
-def cfdLogic_mod(s,thresh,offset=2,expandBits=2):
+def cfdLogic_mod(s,thresh,base,offset=2,expandBits=2):
     res = (np.roll(s,offset>>1).astype(np.int32) - np.roll(s,-(offset>>1)).astype(np.int32))
-    res *= np.array(s).astype(np.int32)-(1<<11)
+    res *= np.array(s).astype(np.int32)-base
     res >>= 12 
     '''
     global indx 
