@@ -15,6 +15,7 @@ sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
 from convert_spectrum import convert_tof_to_energy
 
+
 def append_to_save_path(save_path, suffix):
     if save_path:
         base, ext = os.path.splitext(save_path)
@@ -57,23 +58,48 @@ def load_and_preprocess_data(run, ports, sample_size=None):
     return data_dict
 
 
-def subtract_t0(data_dict, t0s, ports):
-    for port, t0 in zip(ports, t0s):
-        data = data_dict.get(port)
-        if data is not None:
-            data = data - t0  # t0 is already in µs
-            data = data[data > 0]
-            data_dict[port] = data
-    return data_dict
+def subtract_t0(data, t0, adjustment):
+    data = data - (t0 - adjustment)
+    data = data[data > 0]
+    return data
 
 
-def convert_data_to_energy(data_dict, retardations, ports, batch_size=2048):
-    for port, retardation in zip(ports, retardations):
-        data = data_dict.get(port)
-        if data is not None and len(data) > 0:
-            energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
-            data_dict[port] = energy_data
-    return data_dict
+def load_converted_h5(save_file, ports, scan=False):
+    # Load data_dict_energy from the file
+    data_dict_energy = {}
+    with h5py.File(save_file, 'r') as hf:
+        for port in ports:
+            dataset_name = f'pks_{port}'
+            if dataset_name in hf:
+                port_data = hf[dataset_name][()]
+                if scan:
+                    scan_var_keys = sorted(port_data.keys())
+                    for s in scan_var_keys:
+                        data_dict_energy[port][s] = port_data[s][()]
+                else:
+                    data_dict_energy[port] = port_data
+            else:
+                data_dict_energy[port] = None
+    return data_dict_energy
+
+
+def convert_data_to_energy(data_dict, retardations, ports, t0s, batch_size=2048, scan=False):
+    energy_dict = {}
+    for idx, (port, retardation) in enumerate(zip(ports, retardations)):
+        port_data = data_dict.get(port)
+        t0 = t0s[idx]
+        if scan:
+            scan_var_keys = sorted(port_data.keys())
+            for s in scan_var_keys:
+                data = subtract_t0(port_data[s], t0, 2e-3)
+                energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
+                energy_dict[port][s] = energy_data
+        else:
+            if port_data is not None and len(port_data) > 0:
+                data = subtract_t0(port_data, t0, 2e-3)
+                energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
+                energy_dict[port] = energy_data
+    return energy_dict
 
 
 def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
