@@ -56,6 +56,7 @@ def load_and_preprocess_data(run, ports, sample_size=None):
 
     return data_dict
 
+
 def subtract_t0(data_dict, t0s, ports):
     for port, t0 in zip(ports, t0s):
         data = data_dict.get(port)
@@ -65,6 +66,7 @@ def subtract_t0(data_dict, t0s, ports):
             data_dict[port] = data
     return data_dict
 
+
 def convert_data_to_energy(data_dict, retardations, ports, batch_size=2048):
     for port, retardation in zip(ports, retardations):
         data = data_dict.get(port)
@@ -72,6 +74,7 @@ def convert_data_to_energy(data_dict, retardations, ports, batch_size=2048):
             energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
             data_dict[port] = energy_data
     return data_dict
+
 
 def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
