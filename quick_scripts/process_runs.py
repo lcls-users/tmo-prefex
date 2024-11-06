@@ -80,7 +80,7 @@ def plot_hv_pcolormesh(data_dict, run, ports, window_range, bin_width, energy_fl
 
 
 def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path=None):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
     axes = axes.flatten()
     t0s = []
     bins = np.linspace(0, 2, 5000)
@@ -133,8 +133,8 @@ def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0
 
         # Define window around t0 if found
         if t0_found:
-            window_start = t0 - 0.025  # 0.025 µs before t0
-            window_end = t0 + 0.2  # 0.2 µs after t0
+            window_start = t0 - 0.015  # 0.025 µs before t0
+            window_end = t0 + 0.15  # 0.2 µs after t0
             idx_start = np.searchsorted(bin_edges, window_start)
             idx_end = np.searchsorted(bin_edges, window_end)
             bins_window = bin_edges[idx_start: idx_end + 1]
@@ -161,10 +161,10 @@ def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0
 
         # Set plot limits and labels
         ax.set_xlim(x_limits)
-        ax.set_ylim(0, max_height * 1.1)
+        ax.set_ylim(0, hist_scan.max() * 1.05)
         ax.set_title(f'Run {run}, Port {port}, Ret {retardation}')
         ax.set_xlabel('Time of Flight (µs)')
-        ax.set_ylabel('Counts (Offset for Clarity)')
+        ax.set_ylabel('Counts')
         ax.legend(fontsize=8)
 
     # Save or display the plot
