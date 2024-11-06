@@ -2,23 +2,16 @@
 
 import argparse
 import os
-from peak_offset import (
-    load_and_preprocess_data,
-    subtract_t0,
-    convert_tof_to_energy,
-    find_t0,
-    plot_spectra,
-)
+from peak_offset import (load_and_preprocess_data, convert_tof_to_energy, find_t0,
+                         plot_spectra, convert_data_to_energy, load_converted_h5)
 import h5py
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 
 
-def plot_hv_pcolormesh(data_dict, run, ports, t0s, window_range, bin_width, energy_flag, retardation, save_path):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
+def plot_hv_pcolormesh(data_dict, run, ports, window_range, bin_width, energy_flag, retardation, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
 
@@ -28,37 +21,23 @@ def plot_hv_pcolormesh(data_dict, run, ports, t0s, window_range, bin_width, ener
         if port_data is None:
             continue
 
-        t0 = t0s[idx]
-        if t0 is None:
-            print(f"No t0 found for port {port}.")
-            continue
-
         scan_var_keys = sorted(port_data.keys())
-        num_scans = len(scan_var_keys)
         scan_values = np.array(scan_var_keys)
 
         hist_matrix = []
         for scan_value in scan_var_keys:
             data = port_data[scan_value]
-            # Subtract t0
-            data_tof = data - t0
-            data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
-
-            if energy_flag:
-                data_x = convert_tof_to_energy(data_tof, retardation=retardation)
-            else:
-                data_x = data_tof
 
             # Determine window range
             if window_range is None:
-                data_min = data_x.min()
-                data_max = data_x.max()
-                window_range_port = (data_min, data_max)
+                data_min = data.min()
+                data_max = data.max()
+                window_range_port = (0, data_max)
             else:
                 window_range_port = window_range
 
             # Apply window range
-            data_in_range = data_x[(data_x >= window_range_port[0]) & (data_x <= window_range_port[1])]
+            data_in_range = data[(data >= window_range_port[0]) & (data <= window_range_port[1])]
             if data_in_range.size == 0:
                 print(f"No data in the specified window range for port {port}, scan {scan_value}.")
                 hist_counts = np.zeros(int((window_range_port[1] - window_range_port[0]) / bin_width))
@@ -100,15 +79,13 @@ def plot_hv_pcolormesh(data_dict, run, ports, t0s, window_range, bin_width, ener
     plt.close(fig)
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
-
-
-def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_t0,
-                      tof_window_range=None, tof_bin_width=0.001, save_path=None):
+def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path=None):
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    axes = axes.flatten()
     t0s = []
-    for port in ports:
+    bins = np.linspace(0, 2, 5000)
+    for idx, port in enumerate(ports):
+        ax = axes[idx]
         port_data = data_dict.get(port)
         if port_data is None:
             print(f"No data found for port {port}. Skipping.")
@@ -123,31 +100,14 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
 
         # Aggregate all data for peak finding
         all_data = np.concatenate([port_data[scan] for scan in scan_var_keys if len(port_data[scan]) > 0])
-
-        # Determine window range
-        if tof_window_range is None:
-            window_min = all_data.min()
-            window_max = all_data.max()
-        else:
-            window_min, window_max = tof_window_range
-
-        # Apply window range
-        data_in_window = all_data[(all_data >= window_min) & (all_data <= window_max)]
-        if data_in_window.size == 0:
-            print(f"No data within the window range {tof_window_range} for port {port}. Skipping.")
-            t0s.append(None)
-            continue
-
-        # Create histogram for peak finding
-        bins_peak = np.arange(window_min, window_max + tof_bin_width, tof_bin_width)
-        hist_peak, bin_edges_peak = np.histogram(data_in_window, bins=bins_peak)
+        hist, bin_edges = np.histogram(all_data, bins=bins)
 
         # Adaptive peak finding
         current_height = height_t0
         t0_found = False
         while not t0_found and current_height >= 5:
             peaks, properties = find_peaks(
-                hist_peak,
+                hist,
                 height=current_height,
                 distance=distance_t0,
                 prominence=prominence_t0
@@ -163,7 +123,7 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
                 t0_found = True
                 # Select the first peak as t0
                 t0_bin = peaks[0]
-                t0 = (bin_edges_peak[t0_bin] + bin_edges_peak[t0_bin + 1]) / 2
+                t0 = (bin_edges[t0_bin] + bin_edges[t0_bin + 1]) / 2
                 t0s.append(t0)
                 print(f"t0 for port {port} found at {t0:.4f} µs with peak height {properties['peak_heights'][0]}.")
 
@@ -175,15 +135,13 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
         if t0_found:
             window_start = t0 - 0.025  # 0.025 µs before t0
             window_end = t0 + 0.2  # 0.2 µs after t0
-            bins_window = np.arange(window_start, window_end + tof_bin_width, tof_bin_width)
-            x_limits = (window_start, window_end)
+            idx_start = np.searchsorted(bin_edges, window_start)
+            idx_end = np.searchsorted(bin_edges, window_end)
+            bins_window = bin_edges[idx_start: idx_end + 1]
         else:
             # If t0 not found, use the original window
-            bins_window = bins_peak
-            x_limits = (window_min, window_max)
-
-        # Initialize plot
-        fig, ax = plt.subplots(figsize=(12, 8))
+            bins_window = bins
+        x_limits = (bins_window[0], bins_window[-1])
         offset = 0
         max_height = 0
 
@@ -191,18 +149,10 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
         for scan in scan_var_keys:
             data_scan = port_data[scan]
             # Apply window around t0 if found
-            if t0_found:
-                data_scan = data_scan[(data_scan >= window_start) & (data_scan <= window_end)]
-            else:
-                data_scan = data_scan[(data_scan >= window_min) & (data_scan <= window_max)]
-
-            if data_scan.size == 0:
-                continue  # Skip if no data in window
-
             hist_scan, bins_scan = np.histogram(data_scan, bins=bins_window)
             bin_centers = (bins_scan[:-1] + bins_scan[1:]) / 2
             ax.plot(bin_centers, hist_scan + offset, label=f'Scan {scan}')
-            offset += hist_scan.max() * 0.5  # Increment offset
+            offset += hist_scan.max()  # Increment offset
             max_height = max(max_height, hist_scan.max() + offset)
 
         # Plot t0 line if found
@@ -212,21 +162,19 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
         # Set plot limits and labels
         ax.set_xlim(x_limits)
         ax.set_ylim(0, max_height * 1.1)
-        ax.set_title(f'Run {run}, Port {port}')
+        ax.set_title(f'Run {run}, Port {port}, Ret {retardation}')
         ax.set_xlabel('Time of Flight (µs)')
         ax.set_ylabel('Counts (Offset for Clarity)')
         ax.legend(fontsize=8)
 
-        # Save or display the plot
-        if save_path:
-            port_save_path = save_path.replace('.pdf', f'_port{port}.pdf')
-            plt.savefig(port_save_path)
-            print(f"t0 waterfall plot for port {port} saved to '{port_save_path}'.")
-        else:
-            plt.show()
+    # Save or display the plot
+    if save_path:
+        plt.savefig(save_path)
+        print(f"t0 waterfall plot for run {run} saved to '{save_path}'.")
+    else:
+        plt.show()
 
-        plt.close(fig)
-
+    plt.close(fig)
     return t0s
 
 
@@ -328,173 +276,177 @@ def main():
         print(f"\nProcessing Run {run}...")
         retardation = retardations[idx]
 
-        for idx, run in enumerate(args.runs):
-            print(f"\nProcessing Run {run}...")
-            retardation = retardations[idx]
+        if args.photon_energy:
+            # Load data
+            data_dict, scan_var_1_unq = load_and_preprocess_data_photon_energy(run, args.ports,
+                                                                               sample_size=args.sample_size)
+            if data_dict is None:
+                continue
 
-            if args.photon_energy:
-                # Load data
-                data_dict, scan_var_1_unq = load_and_preprocess_data_photon_energy(run, args.ports,
-                                                                                   sample_size=args.sample_size)
-                if data_dict is None:
-                    continue
-
-                # Find t0
+            # Find t0
+            if args.find_t0:
                 t0_save_path = os.path.join(args.save_path, f"run{run}_t0_waterfall.pdf") if args.save_path else None
                 t0s = find_t0_waterfall(
                     data_dict=data_dict,
                     run=run,
+                    retardation=retardation,
                     ports=args.ports,
                     height_t0=args.height_t0,
                     distance_t0=args.distance_t0,
                     prominence_t0=args.prominence_t0,
-                    tof_window_range=args.tof_window_range,
-                    tof_bin_width=args.tof_bin_width,
                     save_path=t0_save_path
                 )
 
-                # Plot HV spectra (TOF and Energy)
-                if args.plotting:
-                    # Plot TOF spectra
-                    tof_spectra_save_path = os.path.join(args.save_path,
-                                                         f"run{run}_hv_tof_spectra.pdf") if args.save_path else None
-                    plot_hv_pcolormesh(
-                        data_dict=data_dict,
-                        run=run,
-                        ports=args.ports,
-                        t0s=t0s,
-                        window_range=args.tof_window_range,
-                        bin_width=args.tof_bin_width,
-                        energy_flag=False,
-                        retardation=retardation,
-                        save_path=tof_spectra_save_path
-                    )
+            if args.save_data_path:
+                save_file = os.path.join(args.save_data_path, f"run{run}_converted.h5")
+                converted_file_exists = os.path.exists(save_file)
+            else:
+                converted_file_exists = False
 
-                    # Plot Energy spectra
-                    energy_spectra_save_path = os.path.join(args.save_path,
-                                                            f"run{run}_hv_energy_spectra.pdf") if args.save_path else None
-                    plot_hv_pcolormesh(
-                        data_dict=data_dict,
-                        run=run,
-                        ports=args.ports,
-                        t0s=t0s,
-                        window_range=args.energy_window_range,
-                        bin_width=args.energy_bin_width,
-                        energy_flag=True,
-                        retardation=retardation,
-                        save_path=energy_spectra_save_path
-                    )
+            if converted_file_exists and not args.overwrite:
+                print(f"Converted data for run {run} already exists at '{save_file}'. Loading data.")
+                data_dict_energy = load_converted_h5(save_file, args.ports, scan=True)
 
             else:
-                data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
-                if data_dict is None:
-                    continue
+                # Either overwrite is set, or the file does not exist
+                # Convert to energy and save data
+                data_dict_energy = convert_data_to_energy(data_dict, [retardation]*len(args.ports), args.ports,
+                                                          t0s, scan=True)
 
-                # Find t0s if needed
-                t0s = None
-                if args.find_t0:
-                    # Generate t0 plot and save to PDF
-                    t0_save_path = os.path.join(args.save_path, f"run{run}_t0.pdf") if args.save_path else None
-                    t0s = find_t0(
-                        data_dict=data_dict,
-                        run=run,
-                        retardation=retardation,
-                        ports=args.ports,
-                        height_t0=args.height_t0,
-                        distance_t0=args.distance_t0,
-                        prominence_t0=args.prominence_t0,
-                        save_path=t0_save_path
-                    )
-                    # Subtract t0s and mask negative values again
-                    data_dict = subtract_t0(data_dict, t0s, args.ports)
-                elif args.t0s is not None:
-                    if len(args.t0s) != len(args.ports):
-                        print("Error: Number of t0s must match number of ports.")
-                        continue
-                    t0s = args.t0s
-                    # Subtract t0s and mask negative values again
-                    data_dict = subtract_t0(data_dict, t0s, args.ports)
-                else:
-                    print("Error: t0s must be provided either via --t0s or by using --find_t0.")
-                    continue
-
-                # Check if the converted HDF5 file exists
-                data_dict_energy = {}
+                # Save converted energy data to HDF5 file
                 if args.save_data_path:
-                    save_file = os.path.join(args.save_data_path, f"run{run}_converted.h5")
-                    converted_file_exists = os.path.exists(save_file)
-                else:
-                    converted_file_exists = False
-
-                if converted_file_exists and not args.overwrite:
-                    print(f"Converted data for run {run} already exists at '{save_file}'. Loading data.")
-                    # Load data_dict_energy from the file
-                    with h5py.File(save_file, 'r') as hf:
+                    with h5py.File(save_file, 'w') as hf:
                         for port in args.ports:
-                            dataset_name = f'pks_{port}'
-                            if dataset_name in hf:
-                                data_dict_energy[port] = hf[dataset_name][()]
+                            port_group = hf.create_group(f'port_{port}')
+                            energy_data = data_dict_energy.get(port)
+                            if energy_data is not None:
+                                for scan_value, energy_array in energy_data.items():
+                                    dataset_name = f'{scan_value}'
+                                    port_group.create_dataset(dataset_name, data=energy_array)
                             else:
-                                data_dict_energy[port] = None
-                else:
-                    # Either overwrite is set, or the file does not exist
-                    # Convert to energy and save data
-                    data_dict_energy = {}
-                    for port in args.ports:
-                        data = data_dict.get(port)
-                        if data is not None and len(data) > 0:
-                            print(f"Converting data for port {port} to energy...")
-                            batch_size = args.batch_size
-                            energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
-                            data_dict_energy[port] = energy_data
-                        else:
-                            data_dict_energy[port] = None
+                                print(f"No energy data for port {port} to save.")
+                    print(f"All energy data saved to '{save_file}'.")
 
-                    # Save converted energy data to HDF5 file
-                    if args.save_data_path:
-                        with h5py.File(save_file, 'w') as hf:
-                            for port in args.ports:
-                                energy_data = data_dict_energy.get(port)
-                                if energy_data is not None:
-                                    hf.create_dataset(f'pks_{port}', data=energy_data)
-                                    print(f"Saved energy data for port {port} to '{save_file}'.")
-                        print(f"All energy data saved to '{save_file}'.")
+            # Plot HV spectra (TOF and Energy)
+            if args.plotting:
+                # Plot TOF spectra
+                tof_spectra_save_path = os.path.join(args.save_path,
+                                                     f"run{run}_hv_tof_spectra.pdf") if args.save_path else None
+                plot_hv_pcolormesh(
+                    data_dict=data_dict,
+                    run=run,
+                    retardation=retardation,
+                    ports=args.ports,
+                    window_range=args.tof_window_range,
+                    bin_width=args.tof_bin_width,
+                    energy_flag=False,
+                    save_path=tof_spectra_save_path
+                )
 
-                # Generate plots if plotting flag is set
-                if args.plotting:
-                    # Plot TOF spectra
-                    tof_save_path = os.path.join(args.save_path, f"run{run}_tof.pdf") if args.save_path else None
-                    plot_spectra(
-                        data_dict=data_dict,
-                        run=run,
-                        retardations=[retardation]*len(args.ports),
-                        t0s=t0s,
-                        ports=args.ports,
-                        window_range=args.tof_window_range,
-                        height=args.height,
-                        distance=args.distance,
-                        prominence=args.prominence,
-                        bin_width=args.tof_bin_width,
-                        energy_flag=False,
-                        save_path=tof_save_path
-                    )
+                # Plot Energy spectra
+                energy_spectra_save_path = os.path.join(args.save_path,
+                                                        f"run{run}_hv_energy_spectra.pdf") if args.save_path else None
+                plot_hv_pcolormesh(
+                    data_dict=data_dict_energy,
+                    run=run,
+                    ports=args.ports,
+                    window_range=args.energy_window_range,
+                    bin_width=args.energy_bin_width,
+                    energy_flag=True,
+                    retardation=retardation,
+                    save_path=energy_spectra_save_path
+                )
 
-                    # Plot energy spectra
-                    energy_save_path = os.path.join(args.save_path, f"run{run}_energy.pdf") if args.save_path else None
-                    plot_spectra(
-                        data_dict=data_dict_energy,
-                        run=run,
-                        retardations=[retardation]*len(args.ports),
-                        t0s=t0s,
-                        ports=args.ports,
-                        window_range=args.energy_window_range,
-                        height=args.height,
-                        distance=args.distance,
-                        prominence=args.prominence,
-                        bin_width=args.energy_bin_width,
-                        energy_flag=True,
-                        save_path=energy_save_path
-                    )
+        else:
+            data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
+            if data_dict is None:
+                continue
+
+            # Find t0s if needed
+            t0s = None
+            if args.find_t0:
+                # Generate t0 plot and save to PDF
+                t0_save_path = os.path.join(args.save_path, f"run{run}_t0.pdf") if args.save_path else None
+                t0s = find_t0(
+                    data_dict=data_dict,
+                    run=run,
+                    retardation=retardation,
+                    ports=args.ports,
+                    height_t0=args.height_t0,
+                    distance_t0=args.distance_t0,
+                    prominence_t0=args.prominence_t0,
+                    save_path=t0_save_path
+                )
+            elif args.t0s is not None:
+                if len(args.t0s) != len(args.ports):
+                    print("Error: Number of t0s must match number of ports.")
+                    continue
+                t0s = args.t0s
+            else:
+                print("Error: t0s must be provided either via --t0s or by using --find_t0.")
+                continue
+
+            if args.save_data_path:
+                save_file = os.path.join(args.save_data_path, f"run{run}_converted.h5")
+                converted_file_exists = os.path.exists(save_file)
+            else:
+                converted_file_exists = False
+
+            if converted_file_exists and not args.overwrite:
+                print(f"Converted data for run {run} already exists at '{save_file}'. Loading data.")
+                data_dict_energy = load_converted_h5(save_file, args.ports, scan=False)
+
+            else:
+                # Either overwrite is set, or the file does not exist
+                # Convert to energy and save data
+                data_dict_energy = convert_data_to_energy(data_dict, [retardation]*len(args.ports), args.ports,
+                                                          t0s, scan=False)
+
+                # Save converted energy data to HDF5 file
+                if args.save_data_path:
+                    with h5py.File(save_file, 'w') as hf:
+                        for port in args.ports:
+                            energy_data = data_dict_energy.get(port)
+                            if energy_data is not None:
+                                hf.create_dataset(f'pks_{port}', data=energy_data)
+                                print(f"Saved energy data for port {port} to '{save_file}'.")
+                    print(f"All energy data saved to '{save_file}'.")
+
+            # Generate plots if plotting flag is set
+            if args.plotting:
+                # Plot TOF spectra
+                tof_save_path = os.path.join(args.save_path, f"run{run}_tof.pdf") if args.save_path else None
+                plot_spectra(
+                    data_dict=data_dict,
+                    run=run,
+                    retardations=[retardation]*len(args.ports),
+                    t0s=t0s,
+                    ports=args.ports,
+                    window_range=args.tof_window_range,
+                    height=args.height,
+                    distance=args.distance,
+                    prominence=args.prominence,
+                    bin_width=args.tof_bin_width,
+                    energy_flag=False,
+                    save_path=tof_save_path
+                )
+
+                # Plot energy spectra
+                energy_save_path = os.path.join(args.save_path, f"run{run}_energy.pdf") if args.save_path else None
+                plot_spectra(
+                    data_dict=data_dict_energy,
+                    run=run,
+                    retardations=[retardation]*len(args.ports),
+                    t0s=t0s,
+                    ports=args.ports,
+                    window_range=args.energy_window_range,
+                    height=args.height,
+                    distance=args.distance,
+                    prominence=args.prominence,
+                    bin_width=args.energy_bin_width,
+                    energy_flag=True,
+                    save_path=energy_save_path
+                )
 
 if __name__ == '__main__':
     main()

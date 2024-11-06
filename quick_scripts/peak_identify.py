@@ -15,37 +15,12 @@ import pickle  # Make sure to import pickle if using scalers
 # Add the path to your custom model modules if needed
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
+from convert_spectrum import parse_params_line, load_scalers
 
 
 def gaussian(x, A, mu, sigma):
     """Gaussian function."""
     return A * np.exp(-(x - mu) ** 2 / (2 * sigma ** 2))
-
-
-def load_scalers(scalers_path):
-    if os.path.exists(scalers_path):
-        with open(scalers_path, 'rb') as f:
-            scalers = pickle.load(f)
-            min_values = scalers['min_values']
-            max_values = scalers['max_values']
-            print(f"Scalers loaded from {scalers_path}")
-            return min_values, max_values
-    else:
-        raise FileNotFoundError(f"Scalers file not found at {scalers_path}")
-
-
-def parse_params_line(params_line):
-    """Parses a params line into a dictionary."""
-    params_dict = {}
-    if params_line:
-        params_list = params_line.strip().split()
-        for param in params_list:
-            if param.startswith('--'):
-                key_value = param[2:].split('=')
-                if len(key_value) == 2:
-                    key, value = key_value
-                    params_dict[key] = value
-    return params_dict
 
 
 def create_variable_bin_edges(energy_min, energy_max, num_bins):
