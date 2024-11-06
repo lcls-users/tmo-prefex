@@ -100,116 +100,132 @@ def plot_hv_pcolormesh(data_dict, run, ports, t0s, window_range, bin_width, ener
     plt.close(fig)
 
 
-def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_t0, tof_window_range, tof_bin_width, save_path):
-    import matplotlib.pyplot as plt
-    from scipy.signal import find_peaks
-    import numpy as np
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
-    axes = axes.flatten()
+
+def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_t0,
+                      tof_window_range=None, tof_bin_width=0.001, save_path=None):
     t0s = []
-
-    for idx, port in enumerate(ports):
-        ax = axes[idx]
+    for port in ports:
         port_data = data_dict.get(port)
         if port_data is None:
+            print(f"No data found for port {port}. Skipping.")
             t0s.append(None)
             continue
 
         scan_var_keys = sorted(port_data.keys())
-        num_scans = len(scan_var_keys)
-
-        # Aggregate data over all scan variables
-        all_data = np.concatenate([port_data[scan_value] for scan_value in scan_var_keys])
-        if len(all_data) == 0:
-            print(f"No data for port {port}.")
+        if not scan_var_keys:
+            print(f"No scan variables found for port {port}. Skipping.")
             t0s.append(None)
             continue
+
+        # Aggregate all data for peak finding
+        all_data = np.concatenate([port_data[scan] for scan in scan_var_keys if len(port_data[scan]) > 0])
 
         # Determine window range
         if tof_window_range is None:
-            data_min = all_data.min()
-            data_max = all_data.max()
-            window_range_port = (0, data_max)
+            window_min = all_data.min()
+            window_max = all_data.max()
         else:
-            window_range_port = tof_window_range
+            window_min, window_max = tof_window_range
 
         # Apply window range
-        data_in_range = all_data[(all_data >= window_range_port[0]) & (all_data <= window_range_port[1])]
-        if data_in_range.size == 0:
-            print(f"No data in the specified window range for port {port}.")
+        data_in_window = all_data[(all_data >= window_min) & (all_data <= window_max)]
+        if data_in_window.size == 0:
+            print(f"No data within the window range {tof_window_range} for port {port}. Skipping.")
             t0s.append(None)
             continue
 
-        # Create histogram
-        bins = np.arange(window_range_port[0], window_range_port[1] + tof_bin_width, tof_bin_width)
-        hist, bin_edges = np.histogram(data_in_range, bins=bins)
+        # Create histogram for peak finding
+        bins_peak = np.arange(window_min, window_max + tof_bin_width, tof_bin_width)
+        hist_peak, bin_edges_peak = np.histogram(data_in_window, bins=bins_peak)
 
         # Adaptive peak finding
         current_height = height_t0
         t0_found = False
         while not t0_found and current_height >= 5:
-            pks, _ = find_peaks(hist, height=current_height, distance=distance_t0, prominence=prominence_t0)
-            if len(pks) == 0:
-                print(f"No peaks found for port {port} with height {current_height}.")
+            peaks, properties = find_peaks(
+                hist_peak,
+                height=current_height,
+                distance=distance_t0,
+                prominence=prominence_t0
+            )
+            if len(peaks) == 0:
+                print(f"No peaks found for port {port} with height threshold {current_height}.")
                 if current_height > 5:
                     current_height -= 2
-                    if current_height < 5:
-                        current_height = 5
+                    print(f"Reducing height threshold to {current_height} and retrying.")
                 else:
                     break
             else:
                 t0_found = True
-                t0_bin = pks[0]
-                t0 = (bin_edges[t0_bin] + bin_edges[t0_bin + 1]) / 2
+                # Select the first peak as t0
+                t0_bin = peaks[0]
+                t0 = (bin_edges_peak[t0_bin] + bin_edges_peak[t0_bin + 1]) / 2
                 t0s.append(t0)
+                print(f"t0 for port {port} found at {t0:.4f} µs with peak height {properties['peak_heights'][0]}.")
 
-                # Adjust window around t0 peak
-                window_start = t0 - 0.025  # 0.025 µs before t0
-                window_end = t0 + 0.2      # 0.2 µs after t0
-
-                idx_start = np.searchsorted(bin_edges, window_start)
-                idx_end = np.searchsorted(bin_edges, window_end)
-                bins_window = bin_edges[idx_start: idx_end+1]
-
-                # Plot waterfall for each scan variable
-                offset = 1
-                max_height = 0
-                for scan_value in scan_var_keys:
-                    data = port_data[scan_value]
-                    data = data[(data >= window_start) & (data <= window_end)]
-                    if len(data) == 0:
-                        continue
-                    hist_scan, _ = np.histogram(data, bins=bins_window)
-                    ax.plot(bins_window[:-1], hist_scan + offset, label=f'Scan {scan_value}')
-                    offset += hist_scan.max() * 0.5
-                    max_height = max(max_height, hist_scan.max() + offset)
-
-                ax.axvline(t0, color='red', linestyle='--', label=f't0 = {t0:.4f} µs')
-                ax.set_xlim(window_start, window_end)
-                ax.set_ylim(0, max_height * 1.1)
-                ax.set_title(f'Run {run}, Port {port}')
-                ax.set_xlabel('Time of Flight (µs)')
-                ax.set_ylabel('Counts (Offset for clarity)')
-                ax.legend(fontsize=8)
         if not t0_found:
             print(f"Failed to find t0 for port {port} even after reducing height to {current_height}.")
             t0s.append(None)
-            ax.set_title(f'Run {run}, Port {port} (t0 not found)')
-            ax.axis('off')
 
-    # Hide any unused subplots
-    total_subplots = len(axes)
-    for idx in range(len(ports), total_subplots):
-        axes[idx].axis('off')
+        # Define window around t0 if found
+        if t0_found:
+            window_start = t0 - 0.025  # 0.025 µs before t0
+            window_end = t0 + 0.2  # 0.2 µs after t0
+            bins_window = np.arange(window_start, window_end + tof_bin_width, tof_bin_width)
+            x_limits = (window_start, window_end)
+        else:
+            # If t0 not found, use the original window
+            bins_window = bins_peak
+            x_limits = (window_min, window_max)
 
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path)
-        print(f"t0 waterfall plot saved to '{save_path}'.")
-    else:
-        plt.show()
-    plt.close(fig)
+        # Initialize plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        offset = 0
+        max_height = 0
+
+        # Plot histograms for each scan variable
+        for scan in scan_var_keys:
+            data_scan = port_data[scan]
+            # Apply window around t0 if found
+            if t0_found:
+                data_scan = data_scan[(data_scan >= window_start) & (data_scan <= window_end)]
+            else:
+                data_scan = data_scan[(data_scan >= window_min) & (data_scan <= window_max)]
+
+            if data_scan.size == 0:
+                continue  # Skip if no data in window
+
+            hist_scan, bins_scan = np.histogram(data_scan, bins=bins_window)
+            bin_centers = (bins_scan[:-1] + bins_scan[1:]) / 2
+            ax.plot(bin_centers, hist_scan + offset, label=f'Scan {scan}')
+            offset += hist_scan.max() * 0.5  # Increment offset
+            max_height = max(max_height, hist_scan.max() + offset)
+
+        # Plot t0 line if found
+        if t0_found:
+            ax.axvline(t0, color='red', linestyle='--', label=f't0 = {t0:.4f} µs')
+
+        # Set plot limits and labels
+        ax.set_xlim(x_limits)
+        ax.set_ylim(0, max_height * 1.1)
+        ax.set_title(f'Run {run}, Port {port}')
+        ax.set_xlabel('Time of Flight (µs)')
+        ax.set_ylabel('Counts (Offset for Clarity)')
+        ax.legend(fontsize=8)
+
+        # Save or display the plot
+        if save_path:
+            port_save_path = save_path.replace('.pdf', f'_port{port}.pdf')
+            plt.savefig(port_save_path)
+            print(f"t0 waterfall plot for port {port} saved to '{port_save_path}'.")
+        else:
+            plt.show()
+
+        plt.close(fig)
 
     return t0s
 
