@@ -15,11 +15,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
 
-def plot_hv_spectra(data_dict_energy, run, ports, energy_bin_width, save_path):
+def plot_hv_energy_spectra(data_dict_energy, run, ports, energy_bin_width, save_path):
     import matplotlib.pyplot as plt
     import numpy as np
 
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    axes = axes.flatten()
+
     for idx, port in enumerate(ports):
+        ax = axes[idx]
         port_data = data_dict_energy.get(port)
         if port_data is None:
             continue
@@ -28,7 +32,10 @@ def plot_hv_spectra(data_dict_energy, run, ports, energy_bin_width, save_path):
         num_scans = len(scan_var_keys)
 
         # Determine bin edges
-        all_energy = np.concatenate([port_data[scan_value] for scan_value in scan_var_keys])
+        all_energy = np.concatenate([port_data[scan_value] for scan_value in scan_var_keys if len(port_data[scan_value]) > 0])
+        if len(all_energy) == 0:
+            print(f"No energy data for port {port}")
+            continue
         energy_min = all_energy.min()
         energy_max = all_energy.max()
         bins = np.arange(energy_min, energy_max + energy_bin_width, energy_bin_width)
@@ -38,36 +45,45 @@ def plot_hv_spectra(data_dict_energy, run, ports, energy_bin_width, save_path):
         hist_matrix = np.zeros((num_scans, len(bin_centers)))
         for i, scan_value in enumerate(scan_var_keys):
             energy_data = port_data[scan_value]
+            if len(energy_data) == 0:
+                hist_matrix[i] = np.zeros(len(bin_centers))
+                continue
             hist, _ = np.histogram(energy_data, bins=bins)
             hist_matrix[i] = hist
 
-        # Create pcolormesh plot
-        fig, ax = plt.subplots(figsize=(10, 6))
-        X, Y = np.meshgrid(bin_centers, np.arange(num_scans))
-        pcm = ax.pcolormesh(X, Y, hist_matrix, shading='auto')
-        fig.colorbar(pcm, ax=ax, label='Counts')
-
+        # Plot the summed histogram
+        summed_hist = np.sum(hist_matrix, axis=0)
+        ax.plot(bin_centers, summed_hist, drawstyle='steps-mid', label=f'Port {port}')
         ax.set_title(f'Run {run}, Port {port}')
         ax.set_xlabel('Energy (eV)')
-        ax.set_ylabel('Photon Energy Index')
-        ax.set_yticks(np.arange(num_scans))
-        ax.set_yticklabels([f'{scan_value}' for scan_value in scan_var_keys])
+        ax.set_ylabel('Counts')
+        ax.legend()
 
-        if save_path:
-            port_save_path = save_path.replace('.pdf', f'_port{port}.pdf')
-            plt.savefig(port_save_path)
-            print(f"Energy spectra plot saved to '{port_save_path}'.")
-        else:
-            plt.show()
-        plt.close(fig)
+    # Hide any unused subplots
+    total_subplots = 16
+    for idx in range(len(ports), total_subplots):
+        axes[idx].axis('off')
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Energy spectra plot saved to '{save_path}'.")
+    else:
+        plt.show()
+    plt.close(fig)
+
 
 
 def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_t0, save_path):
     import matplotlib.pyplot as plt
     from scipy.signal import find_peaks
+
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    axes = axes.flatten()
     t0s = []
 
     for idx, port in enumerate(ports):
+        ax = axes[idx]
         port_data = data_dict.get(port)
         if port_data is None:
             t0s.append(None)
@@ -75,7 +91,6 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
 
         scan_var_keys = sorted(port_data.keys())
         num_scans = len(scan_var_keys)
-        fig, ax = plt.subplots(figsize=(10, 6))
 
         offset = 0
         max_height = 0
@@ -106,15 +121,79 @@ def find_t0_waterfall(data_dict, run, ports, height_t0, distance_t0, prominence_
         ax.set_ylabel('Counts (Offset for clarity)')
         ax.legend()
 
-        if save_path:
-            port_save_path = save_path.replace('.pdf', f'_port{port}.pdf')
-            plt.savefig(port_save_path)
-            print(f"t0 waterfall plot saved to '{port_save_path}'.")
-        else:
-            plt.show()
-        plt.close(fig)
+    # Hide any unused subplots
+    total_subplots = 16
+    for idx in range(len(ports), total_subplots):
+        axes[idx].axis('off')
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+        print(f"t0 waterfall plot saved to '{save_path}'.")
+    else:
+        plt.show()
+    plt.close(fig)
 
     return t0s
+
+
+def plot_hv_tof_spectra(data_dict, run, ports, tof_bin_width, save_path):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    axes = axes.flatten()
+
+    for idx, port in enumerate(ports):
+        ax = axes[idx]
+        port_data = data_dict.get(port)
+        if port_data is None:
+            continue
+
+        scan_var_keys = sorted(port_data.keys())
+        num_scans = len(scan_var_keys)
+
+        # Determine bin edges
+        all_tof = np.concatenate([port_data[scan_value] for scan_value in scan_var_keys if len(port_data[scan_value]) > 0])
+        if len(all_tof) == 0:
+            print(f"No TOF data for port {port}")
+            continue
+        tof_min = all_tof.min()
+        tof_max = all_tof.max()
+        bins = np.arange(tof_min, tof_max + tof_bin_width, tof_bin_width)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        # Create histogram matrix
+        hist_matrix = np.zeros((num_scans, len(bin_centers)))
+        for i, scan_value in enumerate(scan_var_keys):
+            tof_data = port_data[scan_value]
+            if len(tof_data) == 0:
+                hist_matrix[i] = np.zeros(len(bin_centers))
+                continue
+            hist, _ = np.histogram(tof_data, bins=bins)
+            hist_matrix[i] = hist
+
+        # Plot the summed histogram
+        summed_hist = np.sum(hist_matrix, axis=0)
+        ax.plot(bin_centers, summed_hist, drawstyle='steps-mid', label=f'Port {port}')
+        ax.set_title(f'Run {run}, Port {port}')
+        ax.set_xlabel('Time of Flight (µs)')
+        ax.set_ylabel('Counts')
+        ax.legend()
+
+    # Hide any unused subplots
+    total_subplots = 16
+    for idx in range(len(ports), total_subplots):
+        axes[idx].axis('off')
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+        print(f"TOF spectra plot saved to '{save_path}'.")
+    else:
+        plt.show()
+    plt.close(fig)
+
 
 
 def load_and_preprocess_data_photon_energy(run, ports, sample_size=None):
@@ -239,17 +318,29 @@ def main():
                 data_dict, t0s, args.ports, retardation, batch_size=args.batch_size
             )
 
-            # Plot HV spectra
+            # Plot HV TOF spectra
             if args.plotting:
+                tof_spectra_save_path = os.path.join(args.save_path,
+                                                     f"run{run}_hv_tof_spectra.pdf") if args.save_path else None
+                plot_hv_tof_spectra(
+                    data_dict=data_dict,
+                    run=run,
+                    ports=args.ports,
+                    tof_bin_width=args.tof_bin_width,
+                    save_path=tof_spectra_save_path
+                )
+
+                # Plot HV Energy spectra
                 energy_spectra_save_path = os.path.join(args.save_path,
                                                         f"run{run}_hv_energy_spectra.pdf") if args.save_path else None
-                plot_hv_spectra(
+                plot_hv_energy_spectra(
                     data_dict_energy=data_dict_energy,
                     run=run,
                     ports=args.ports,
                     energy_bin_width=args.energy_bin_width,
                     save_path=energy_spectra_save_path
                 )
+
         else:
             data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
             if data_dict is None:
