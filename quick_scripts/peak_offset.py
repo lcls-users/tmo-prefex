@@ -159,7 +159,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
 
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
     axes = axes.flatten()
 
     for idx, port in enumerate(ports):
@@ -235,7 +235,7 @@ def plot_ports(data_dict, ports, window_range, height, distance, prominence, ene
         plt.show()
 
 def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height, distance, prominence, bin_width, energy_flag, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
     axes = axes.flatten()
 
     for idx, port in enumerate(ports):
@@ -292,7 +292,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height,
         # Set labels and title
         t0_value = t0s[idx] if t0s is not None and t0s[idx] is not None else 'N/A'
         retardation_value = retardations[idx] if retardations is not None else 'N/A'
-        ax.set_title(f'Run {run}, Retardation {retardation_value}, Port {port}, t0={t0_value}', fontsize=10)
+        ax.set_title(f'Run {run}, Retardation {retardation_value}, t0={t0_value:.3f}', fontsize=10)
         ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel('Normalized Counts', fontsize=12)
         ax.legend(fontsize=10)
