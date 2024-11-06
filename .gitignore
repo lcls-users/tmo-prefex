@@ -4,4 +4,4 @@ slurm-*
 output-*
 __pycache__
 *.pyc
-
+.idea*
