@@ -310,8 +310,7 @@ def main():
             else:
                 # Either overwrite is set, or the file does not exist
                 # Convert to energy and save data
-                data_dict_energy = convert_data_to_energy(data_dict, [retardation]*len(args.ports), args.ports,
-                                                          t0s, scan=True)
+                data_dict_energy = convert_data_to_energy_photon_energy(data_dict, t0s, args.ports, retardation)
 
                 # Save converted energy data to HDF5 file
                 if args.save_data_path:
