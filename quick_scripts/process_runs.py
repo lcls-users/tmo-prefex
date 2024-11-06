@@ -232,7 +232,8 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, bat
             data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
             energy_data = convert_tof_to_energy(data_tof, retardation=retardation, batch_size=batch_size)
             data_dict_energy[port][scan_value] = energy_data
-    return data_dict_energy
+            data_dict[port][scan_value] = data_tof
+    return data_dict_energy, data_dict
 
 
 def main():
@@ -310,7 +311,7 @@ def main():
             else:
                 # Either overwrite is set, or the file does not exist
                 # Convert to energy and save data
-                data_dict_energy = convert_data_to_energy_photon_energy(data_dict, t0s, args.ports, retardation)
+                data_dict_energy, data_dict = convert_data_to_energy_photon_energy(data_dict, t0s, args.ports, retardation)
 
                 # Save converted energy data to HDF5 file
                 if args.save_data_path:
