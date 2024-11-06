@@ -41,6 +41,7 @@ def plot_hv_pcolormesh(data_dict, run, ports, window_range, bin_width, energy_fl
             if data_in_range.size == 0:
                 print(f"No data in the specified window range for port {port}, scan {scan_value}.")
                 hist_counts = np.zeros(int((window_range_port[1] - window_range_port[0]) / bin_width))
+                bins = np.arange(window_range_port[0], window_range_port[1] + bin_width, bin_width)
             else:
                 bins = np.arange(window_range_port[0], window_range_port[1] + bin_width, bin_width)
                 hist_counts, _ = np.histogram(data_in_range, bins=bins)
@@ -161,7 +162,6 @@ def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0
 
         # Set plot limits and labels
         ax.set_xlim(x_limits)
-        ax.set_ylim(0, hist_scan.max() * 1.05)
         ax.set_title(f'Run {run}, Port {port}, Ret {retardation}')
         ax.set_xlabel('Time of Flight (µs)')
         ax.set_ylabel('Counts')
