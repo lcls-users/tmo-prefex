@@ -73,6 +73,7 @@ def load_converted_h5(save_file, ports, scan=False):
             if dataset_name in hf:
                 port_data = hf[dataset_name][()]
                 if scan:
+                    data_dict_energy[port] = {}
                     scan_var_keys = sorted(port_data.keys())
                     for s in scan_var_keys:
                         data_dict_energy[port][s] = port_data[s][()]
@@ -90,6 +91,7 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, batch_size=2048,
         t0 = t0s[idx]
         if scan:
             scan_var_keys = sorted(port_data.keys())
+            energy_dict[port] = {}
             for s in scan_var_keys:
                 data = subtract_t0(port_data[s], t0, 2e-3)
                 energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
