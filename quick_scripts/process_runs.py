@@ -304,7 +304,7 @@ def main():
                                                                                sample_size=args.sample_size)
             if data_dict is None:
                 continue
-
+            t0_save_path = os.path.join(args.save_path, f"run{run}_t0.pdf") if args.save_path else None
             # Find t0
             if args.find_t0:
                 t0s = find_t0_waterfall(
