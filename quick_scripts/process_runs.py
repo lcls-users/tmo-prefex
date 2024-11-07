@@ -77,8 +77,7 @@ def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, r
         ax.set_ylabel(ylabel)
 
     # Hide any unused subplots
-    total_subplots = len(axes)
-    for idx in range(len(ports), total_subplots):
+    for idx in range(n_ports, n_rows * n_cols):
         axes[idx].axis('off')
 
     plt.tight_layout()
@@ -92,8 +91,15 @@ def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, r
 
 def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0,
                       bins, save_path=None):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
-    axes = axes.flatten()
+    n_ports = len(ports)
+    n_rows, n_cols = determine_subplot_grid(n_ports)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+
+    # If there's only one subplot, make axes iterable
+    if n_ports == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
     t0s = []
 
     for idx, port in enumerate(ports):
@@ -180,7 +186,9 @@ def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0
         ax.set_ylabel('Counts')
         ax.legend(fontsize=8)
 
-    # Save or display the plot
+    # Hide any unused subplots
+    for idx in range(n_ports, n_rows * n_cols):
+        axes[idx].axis('off')
     if save_path:
         plt.savefig(save_path)
         print(f"t0 waterfall plot for run {run} saved to '{save_path}'.")

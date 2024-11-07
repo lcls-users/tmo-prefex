@@ -195,8 +195,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
             # Optionally, you can plot an empty plot or skip plotting for this port
 
     # Hide any unused subplots
-    total_subplots = 16
-    for idx in range(len(ports), total_subplots):
+    for idx in range(n_ports, n_rows * n_cols):
         axes[idx].axis('off')
     plt.tight_layout()
     if save_path:
@@ -280,8 +279,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
         ax.legend(fontsize=10)
 
     # Hide any unused subplots
-    total_subplots = 16
-    for idx in range(len(ports), total_subplots):
+    for idx in range(n_ports, n_rows * n_cols):
         axes[idx].axis('off')
     plt.tight_layout()
     if save_path:
