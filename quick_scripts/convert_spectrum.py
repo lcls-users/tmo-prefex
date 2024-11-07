@@ -13,6 +13,7 @@ import pickle  # Ensure pickle is imported
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
 
+
 def load_scalers(scalers_path):
     """Load scalers from the specified path."""
     if os.path.exists(scalers_path):
@@ -24,6 +25,7 @@ def load_scalers(scalers_path):
             return min_values, max_values
     else:
         raise FileNotFoundError(f"Scalers file not found at {scalers_path}")
+
 
 def parse_params_line(params_line):
     """Parses a params line into a dictionary."""
@@ -37,6 +39,7 @@ def parse_params_line(params_line):
                     key, value = key_value
                     params_dict[key] = value
     return params_dict
+
 
 def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
     """

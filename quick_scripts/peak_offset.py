@@ -191,83 +191,6 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
     return t0s
 
 
-def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
-    axes = axes.flatten()
-
-    for idx, port in enumerate(ports):
-        ax = axes[idx]
-        data = data_dict.get(port)
-        if data is None or len(data) == 0:
-            print(f"No data for port {port}.")
-            continue
-
-        # Determine window range if not specified
-        if window_range is None:
-            data_min = data.min()
-            data_max = data.max()
-            window_range_port = (0, data_max)
-        else:
-            window_range_port = window_range
-
-        # Apply window range
-        data_in_range = data[(data >= window_range_port[0]) & (data <= window_range_port[1])]
-
-        if data_in_range.size == 0:
-            print(f"No data in the specified window range for port {port}.")
-            continue
-
-        # Create histogram
-        if energy_flag:
-            xlabel = 'Energy (eV)'
-            bins = np.linspace(data_in_range.min(), data_in_range.max(), 5000)
-        else:
-            xlabel = 'Time of Flight (µs)'
-            bins = np.linspace(0, 2, 5000)
-
-        counts, bin_edges = np.histogram(data_in_range, bins=bins)
-
-        # Normalize counts
-        max_count = counts.max()
-        counts_normalized = counts / max_count
-
-        # Perform peak finding on the normalized counts
-        peaks, properties = find_peaks(counts_normalized, height=height, distance=distance, prominence=prominence)
-
-        # Compute bin centers
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-
-        # Plot histogram
-        ax.plot(bin_centers, counts_normalized, drawstyle='steps-mid', label=f'Port {port}')
-        # Mark peaks
-        ax.plot(bin_centers[peaks], counts_normalized[peaks], 'x', color='red')
-        # Annotate peaks
-        for peak_pos, peak_count in zip(bin_centers[peaks], counts_normalized[peaks]):
-            ax.annotate(f'{peak_pos:.2f}',
-                        xy=(peak_pos, peak_count),
-                        xytext=(0, 5), textcoords='offset points',
-                        ha='center', va='bottom', fontsize=10, color='red',
-                        rotation=90,
-                        arrowprops=dict(arrowstyle='->', color='red'))
-
-        # Set labels and title
-        ax.set_title(f'Port {port}', fontsize=14)
-        ax.set_xlabel(xlabel, fontsize=12)
-        ax.set_ylabel('Normalized Counts', fontsize=12)
-        ax.legend(fontsize=10)
-
-    # Hide any unused subplots
-    total_subplots = 16
-    for idx in range(len(ports), total_subplots):
-        axes[idx].axis('off')
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path)
-        print(f"Plot saved to '{save_path}'.")
-    else:
-        plt.show()
-
-
 def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, height, distance, prominence, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
@@ -343,6 +266,83 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
         plt.show()
     plt.close(fig)
 
+
+
+def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
+    axes = axes.flatten()
+
+    for idx, port in enumerate(ports):
+        ax = axes[idx]
+        data = data_dict.get(port)
+        if data is None or len(data) == 0:
+            print(f"No data for port {port}.")
+            continue
+
+        # Determine window range if not specified
+        if window_range is None:
+            data_min = data.min()
+            data_max = data.max()
+            window_range_port = (0, data_max)
+        else:
+            window_range_port = window_range
+
+        # Apply window range
+        data_in_range = data[(data >= window_range_port[0]) & (data <= window_range_port[1])]
+
+        if data_in_range.size == 0:
+            print(f"No data in the specified window range for port {port}.")
+            continue
+
+        # Create histogram
+        if energy_flag:
+            xlabel = 'Energy (eV)'
+            bins = np.linspace(data_in_range.min(), data_in_range.max(), 5000)
+        else:
+            xlabel = 'Time of Flight (µs)'
+            bins = np.linspace(0, 2, 5000)
+
+        counts, bin_edges = np.histogram(data_in_range, bins=bins)
+
+        # Normalize counts
+        max_count = counts.max()
+        counts_normalized = counts / max_count
+
+        # Perform peak finding on the normalized counts
+        peaks, properties = find_peaks(counts_normalized, height=height, distance=distance, prominence=prominence)
+
+        # Compute bin centers
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+        # Plot histogram
+        ax.plot(bin_centers, counts_normalized, drawstyle='steps-mid', label=f'Port {port}')
+        # Mark peaks
+        ax.plot(bin_centers[peaks], counts_normalized[peaks], 'x', color='red')
+        # Annotate peaks
+        for peak_pos, peak_count in zip(bin_centers[peaks], counts_normalized[peaks]):
+            ax.annotate(f'{peak_pos:.2f}',
+                        xy=(peak_pos, peak_count),
+                        xytext=(0, 5), textcoords='offset points',
+                        ha='center', va='bottom', fontsize=10, color='red',
+                        rotation=90,
+                        arrowprops=dict(arrowstyle='->', color='red'))
+
+        # Set labels and title
+        ax.set_title(f'Port {port}', fontsize=14)
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_ylabel('Normalized Counts', fontsize=12)
+        ax.legend(fontsize=10)
+
+    # Hide any unused subplots
+    total_subplots = 16
+    for idx in range(len(ports), total_subplots):
+        axes[idx].axis('off')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Plot saved to '{save_path}'.")
+    else:
+        plt.show()
 
 
 def plot_spectra_waterfall(data_dict, ports, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path):
