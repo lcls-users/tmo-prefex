@@ -284,7 +284,7 @@ def main():
         return
 
     # Define TOF bins globally
-    tof_bins = np.linspace(0, 2, 5000)
+    tof_bins = np.linspace(1e-8, 2, 5000)
 
     # Loop through each run
     for idx, run in enumerate(args.runs):
@@ -440,6 +440,7 @@ def main():
                                 print(f"Saved energy data for port {port} to '{save_file}'.")
                     print(f"All energy data saved to '{save_file}'.")
             energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+            print(energy_bins)
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
                 data_tof = port_data - (t0s[i] - 2e-3)
