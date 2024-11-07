@@ -14,7 +14,7 @@ from scipy.signal import find_peaks
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
 from convert_spectrum import convert_tof_to_energy
-
+import math
 
 def append_to_save_path(save_path, suffix):
     if save_path:
@@ -22,6 +22,15 @@ def append_to_save_path(save_path, suffix):
         return f"{base}{suffix}{ext}"
     else:
         return None
+
+
+def determine_subplot_grid(n_plots):
+    """Determine the number of rows and columns for subplots based on number of plots."""
+    if n_plots == 0:
+        return (1, 1)
+    n_cols = math.ceil(math.sqrt(n_plots))
+    n_rows = math.ceil(n_plots / n_cols)
+    return (n_rows, n_cols)
 
 
 def load_and_preprocess_data(run, ports, sample_size=None):
@@ -108,8 +117,16 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, tof_bins, batch_
 
 
 def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, bins, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
-    axes = axes.flatten()
+    n_ports = len(ports)
+    n_rows, n_cols = determine_subplot_grid(n_ports)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+
+    # If there's only one subplot, make axes iterable
+    if n_ports == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
+
     t0s = []
 
     for idx, port in enumerate(ports):
@@ -192,8 +209,15 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
 
 
 def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, height, distance, prominence, energy_flag, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
-    axes = axes.flatten()
+    n_ports = len(ports)
+    n_rows, n_cols = determine_subplot_grid(n_ports)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+
+    # If there's only one subplot, make axes iterable
+    if n_ports == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     for idx, port in enumerate(ports):
         ax = axes[idx]
@@ -266,7 +290,6 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
     else:
         plt.show()
     plt.close(fig)
-
 
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):

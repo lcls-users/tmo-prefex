@@ -3,7 +3,7 @@
 import argparse
 import os
 from peak_offset import (load_and_preprocess_data, convert_tof_to_energy, find_t0,
-                         plot_spectra, convert_data_to_energy, load_converted_h5)
+                         plot_spectra, convert_data_to_energy, load_converted_h5, determine_subplot_grid)
 import h5py
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -12,8 +12,15 @@ from scipy.signal import find_peaks
 
 
 def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, retardation, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
-    axes = axes.flatten()
+    n_ports = len(ports)
+    n_rows, n_cols = determine_subplot_grid(n_ports)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+
+    # If there's only one subplot, make axes iterable
+    if n_ports == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     for idx, port in enumerate(ports):
         ax = axes[idx]
@@ -185,8 +192,6 @@ def find_t0_waterfall(data_dict, run, retardation, ports, height_t0, distance_t0
 
 
 def load_and_preprocess_data_photon_energy(run, ports, sample_size=None):
-    import numpy as np
-    import h5py
     data_dict = {}
     data_path = '/sdf/data/lcls/ds/tmo/tmox1016823/scratch/preproc/v2'
     h5_file_path = os.path.join(data_path, f'run{run}_v2.h5')
@@ -272,6 +277,8 @@ def main():
     parser.add_argument('--sample_size', type=int, default=None, help='Subsample size. If not provided, get all data.')
     parser.add_argument('--overwrite', action='store_true', help='If set, overwrite existing converted data files.')
     parser.add_argument('--photon_energy', action='store_true', help='If set, process data based on photon energy scan.')
+    parser.add_argument('--hv_select', type=float, default=None, help='Select a specific scan_var value to plot.')
+
     args = parser.parse_args()
 
     # Process retardation values
@@ -284,7 +291,8 @@ def main():
         return
 
     # Define TOF bins globally
-    tof_bins = np.linspace(1e-8, 2, 5000)
+    tof_bins = np.linspace(0, 2, 5000)
+    tof_bins = tof_bins[1:]
 
     # Loop through each run
     for idx, run in enumerate(args.runs):
@@ -349,39 +357,77 @@ def main():
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
 
-            energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+            energy_bins = np.array(sorted(convert_tof_to_energy(tof_bins, retardation=retardation))) - retardation
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
                 for scan_value, data in port_data.items():
                     data_tof = data - (t0s[i] - 2e-3)
                     data_dict[port][scan_value] = data_tof[data_tof > 0]
             if args.plotting:
-                # Plot TOF spectra
-                tof_spectra_save_path = os.path.join(args.save_path,
-                                                     f"run{run}_hv_tof_spectra.pdf") if args.save_path else None
-                plot_hv_pcolormesh(
-                    data_dict=data_dict,
-                    run=run,
-                    ports=args.ports,
-                    bins=tof_bins,  # Use TOF bins
-                    window_range=args.tof_window_range,
-                    energy_flag=False,
-                    retardation=retardation,
-                    save_path=tof_spectra_save_path
-                )
-                # Plot Energy spectra
-                energy_spectra_save_path = os.path.join(args.save_path,
-                                                        f"run{run}_hv_energy_spectra.pdf") if args.save_path else None
-                plot_hv_pcolormesh(
-                    data_dict=data_dict_energy,
-                    run=run,
-                    ports=args.ports,
-                    bins=energy_bins,  # Use energy bins
-                    window_range=args.energy_window_range,
-                    energy_flag=True,
-                    retardation=retardation,
-                    save_path=energy_spectra_save_path
-                )
+                if args.hv_select:
+                    hv_select = args.hv_select
+                    data_subset = {port: {hv_select: data_dict[port].get(hv_select)} for port in args.ports}
+                    energy_data_subset = {port: {hv_select: data_dict_energy[port].get(hv_select)} for port in
+                                          args.ports}
+                    tof_save_path = os.path.join(args.save_path, f"run{run}_tof_hv_{args.hv_select}.pdf") if args.save_path else None
+                    plot_spectra(
+                        data_dict=data_subset,
+                        run=run,
+                        retardations=[retardation] * len(args.ports),
+                        t0s=t0s,
+                        ports=args.ports,
+                        bins=tof_bins,
+                        window_range=args.tof_window_range,
+                        height=args.height,
+                        distance=args.distance,
+                        prominence=args.prominence,
+                        energy_flag=False,
+                        save_path=tof_save_path
+                    )
+
+                    # Plot energy spectra
+                    energy_save_path = os.path.join(args.save_path, f"run{run}_energy_hv_{args.hv_select}.pdf") if args.save_path else None
+                    plot_spectra(
+                        data_dict=energy_data_subset,
+                        run=run,
+                        retardations=[retardation] * len(args.ports),
+                        t0s=t0s,
+                        ports=args.ports,
+                        bins=energy_bins,
+                        window_range=args.energy_window_range,
+                        height=args.height,
+                        distance=args.distance,
+                        prominence=args.prominence,
+                        energy_flag=True,
+                        save_path=energy_save_path
+                    )
+                else:
+                    # Plot TOF spectra
+                    tof_spectra_save_path = os.path.join(args.save_path,
+                                                         f"run{run}_hv_tof_spectra.pdf") if args.save_path else None
+                    plot_hv_pcolormesh(
+                        data_dict=data_dict,
+                        run=run,
+                        ports=args.ports,
+                        bins=tof_bins,  # Use TOF bins
+                        window_range=args.tof_window_range,
+                        energy_flag=False,
+                        retardation=retardation,
+                        save_path=tof_spectra_save_path
+                    )
+                    # Plot Energy spectra
+                    energy_spectra_save_path = os.path.join(args.save_path,
+                                                            f"run{run}_hv_energy_spectra.pdf") if args.save_path else None
+                    plot_hv_pcolormesh(
+                        data_dict=data_dict_energy,
+                        run=run,
+                        ports=args.ports,
+                        bins=energy_bins,  # Use energy bins
+                        window_range=args.energy_window_range,
+                        energy_flag=True,
+                        retardation=retardation,
+                        save_path=energy_spectra_save_path
+                    )
 
         else:
             data_dict = load_and_preprocess_data(run, args.ports, sample_size=args.sample_size)
