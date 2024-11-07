@@ -439,7 +439,7 @@ def main():
                                 hf.create_dataset(f'pks_{port}', data=energy_data)
                                 print(f"Saved energy data for port {port} to '{save_file}'.")
                     print(f"All energy data saved to '{save_file}'.")
-            energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+            energy_bins = np.array(sorted(convert_tof_to_energy(tof_bins, retardation=0))) - retardation
             print(energy_bins)
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
