@@ -192,7 +192,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
 
 
 def plot_ports(data_dict, ports, window_range, height, distance, prominence, energy_flag, save_path):
-    fig, axes = plt.subplots(4, 4, figsize=(15, 15))
+    fig, axes = plt.subplots(4, 4, figsize=(15, 15), constrained_layout=True)
     axes = axes.flatten()
 
     for idx, port in enumerate(ports):
