@@ -78,14 +78,16 @@ def load_converted_h5(save_file, ports, scan=False):
     data_dict_energy = {}
     with h5py.File(save_file, 'r') as hf:
         for port in ports:
-            dataset_name = f'pks_{port}'
+            dataset_name = f'port_{port}'
             if dataset_name in hf:
-                port_data = hf[dataset_name][()]
+                port_data = hf[dataset_name]
                 if scan:
                     data_dict_energy[port] = {}
-                    scan_var_keys = sorted(port_data.keys())
+                    scan_var_keys = port_data.keys()
+                    print("These are the scan variable keys: ", scan_var_keys)
                     for s in scan_var_keys:
-                        data_dict_energy[port][s] = port_data[s][()]
+                        print(s)
+                        data_dict_energy[port][s] = port_data[s][:]
                 else:
                     data_dict_energy[port] = port_data
             else:
