@@ -78,7 +78,7 @@ def load_converted_h5(save_file, ports, scan=False):
     data_dict_energy = {}
     with h5py.File(save_file, 'r') as hf:
         for port in ports:
-            dataset_name = f'port_{port}'
+            dataset_name = f'pks_{port}'
             if dataset_name in hf:
                 port_data = hf[dataset_name]
                 if scan:
@@ -226,6 +226,8 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
         if energy_flag:
             data = data - retardations[idx]
         if data is None or len(data) == 0:
+            tof_bins = tof_bins - (t0s[0] - 2e-3)
+            tof_bins = tof_bins[tof_bins > 0]            
             print(f"No data for port {port}.")
             continue
 

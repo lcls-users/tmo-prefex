@@ -355,7 +355,7 @@ def main():
                 if args.save_data_path:
                     with h5py.File(save_file, 'w') as hf:
                         for port in args.ports:
-                            port_group = hf.create_group(f'port_{port}')
+                            port_group = hf.create_group(f'pks_{port}')
                             energy_data = data_dict_energy.get(port)
                             if energy_data is not None:
                                 for scan_value, energy_array in energy_data.items():
