@@ -239,7 +239,7 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, tof
             continue
         data_dict_energy[port] = {}
         for scan_value, data in port_data.items():
-            data_tof = data - t0
+            data_tof = data - (t0 - 2e-3)
             data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
             energy_data = convert_tof_to_energy(data_tof, retardation=retardation, batch_size=batch_size)
             data_dict_energy[port][scan_value] = energy_data

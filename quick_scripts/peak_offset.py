@@ -84,8 +84,9 @@ def load_converted_h5(save_file, ports, scan=False):
     return data_dict_energy
 
 
-def convert_data_to_energy(data_dict, retardations, ports, t0s, batch_size=2048, scan=False):
+def convert_data_to_energy(data_dict, retardations, ports, t0s, tof_bins, batch_size=2048, scan=False):
     energy_dict = {}
+    energy_bins = convert_tof_to_energy(tof_bins, retardation=0)  # Convert bins to energy with retardation=0
     for idx, (port, retardation) in enumerate(zip(ports, retardations)):
         port_data = data_dict.get(port)
         t0 = t0s[idx]
@@ -101,7 +102,9 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, batch_size=2048,
                 data = subtract_t0(port_data, t0, 2e-3)
                 energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
                 energy_dict[port] = energy_data
-    return energy_dict
+                data_dict[port][s] = data
+    return energy_dict, data_dict, energy_bins
+
 
 
 def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, bins, save_path):
