@@ -243,8 +243,8 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, tof
             data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
             energy_data = convert_tof_to_energy(data_tof, retardation=retardation, batch_size=batch_size)
             data_dict_energy[port][scan_value] = energy_data
-            data_dict[port][scan_value] = data_tof  # Update TOF data with t0 subtracted
-    return data_dict_energy, data_dict, energy_bins
+            data_dict[port][scan_value] = data_tof
+    return data_dict_energy, energy_bins
 
 
 def main():
@@ -332,7 +332,7 @@ def main():
             else:
                 # Either overwrite is set, or the file does not exist
                 # Convert to energy and save data
-                data_dict_energy, data_dict, energy_bins = convert_data_to_energy_photon_energy(
+                data_dict_energy, energy_bins = convert_data_to_energy_photon_energy(
                     data_dict, t0s, args.ports, retardation, tof_bins
                 )
                 # Save converted energy data to HDF5 file
@@ -349,7 +349,12 @@ def main():
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
 
-            # Plot HV spectra (TOF and Energy)
+            energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+            for i, port in enumerate(args.ports):
+                port_data = data_dict[port]
+                for scan_value, data in port_data.items():
+                    data_tof = data - (t0s[i] - 2e-3)
+                    data_dict[port][scan_value] = data_tof[data_tof > 0]
             if args.plotting:
                 # Plot TOF spectra
                 tof_spectra_save_path = os.path.join(args.save_path,
@@ -421,7 +426,7 @@ def main():
             else:
                 # Either overwrite is set, or the file does not exist
                 # Convert to energy and save data
-                data_dict_energy, energy_bins = convert_data_to_energy(
+                data_dict_energy = convert_data_to_energy(
                     data_dict, [retardation] * len(args.ports), args.ports, t0s, tof_bins
                 )
 
@@ -434,7 +439,11 @@ def main():
                                 hf.create_dataset(f'pks_{port}', data=energy_data)
                                 print(f"Saved energy data for port {port} to '{save_file}'.")
                     print(f"All energy data saved to '{save_file}'.")
-
+            energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+            for i, port in enumerate(args.ports):
+                port_data = data_dict[port]
+                data_tof = port_data - (t0s[i] - 2e-3)
+                data_dict[port] = data_tof[data_tof > 0]
             # Generate plots if plotting flag is set
             if args.plotting:
                 # Plot TOF spectra
