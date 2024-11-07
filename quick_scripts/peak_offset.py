@@ -286,6 +286,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
             # Apply window range to bins
             bin_mask = (bins >= window_range[0]) & (bins <= window_range[1])
             bins_window = bins[bin_mask]
+            print(bins_window.tolist(), len(bins_window))
         else:
             bins_window = bins
 
