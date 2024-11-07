@@ -28,6 +28,9 @@ def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, r
         for scan_value in scan_var_keys:
             data = port_data[scan_value]
 
+            if energy_flag:
+                data = data - retardation
+
             # Determine window range
             if window_range is not None:
                 # Apply window range to bins
@@ -62,7 +65,7 @@ def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, r
         pcm = ax.pcolormesh(X, Y, hist_matrix, shading='auto')
         fig.colorbar(pcm, ax=ax, label='Counts')
 
-        ax.set_title(f'Run {run}, Port {port}')
+        ax.set_title(f'Run {run}, Port {port}, Ret {retardation}')
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
 

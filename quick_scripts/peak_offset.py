@@ -272,6 +272,8 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
     for idx, port in enumerate(ports):
         ax = axes[idx]
         data = data_dict.get(port)
+        if energy_flag:
+            data = data - retardations[idx]
         if data is None or len(data) == 0:
             print(f"No data for port {port}.")
             continue
