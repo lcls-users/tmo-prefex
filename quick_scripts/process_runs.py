@@ -366,8 +366,8 @@ def main():
             if args.plotting:
                 if args.hv_select:
                     hv_select = args.hv_select
-                    data_subset = {port: {hv_select: data_dict[port].get(hv_select)} for port in args.ports}
-                    energy_data_subset = {port: {hv_select: data_dict_energy[port].get(hv_select)} for port in
+                    data_subset = {port: data_dict[port].get(hv_select) for port in args.ports}
+                    energy_data_subset = {port: data_dict_energy[port].get(hv_select) for port in
                                           args.ports}
                     tof_save_path = os.path.join(args.save_path, f"run{run}_tof_hv_{args.hv_select}.pdf") if args.save_path else None
                     plot_spectra(
