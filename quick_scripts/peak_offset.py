@@ -104,7 +104,7 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, batch_size=2048,
     return energy_dict
 
 
-def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, save_path):
+def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominence_t0, bins, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
     t0s = []
@@ -117,8 +117,7 @@ def find_t0(data_dict, run, retardation, ports, height_t0, distance_t0, prominen
             t0s.append(None)
             continue
 
-        # Create histogram
-        bins = np.linspace(0, 2, 5000)
+        # Create histogram using provided bins
         hist, bin_edges = np.histogram(data, bins=bins)
 
         # Initialize peak height parameter
@@ -265,7 +264,8 @@ def plot_ports(data_dict, ports, window_range, height, distance, prominence, ene
     else:
         plt.show()
 
-def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height, distance, prominence, bin_width, energy_flag, save_path):
+
+def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, height, distance, prominence, energy_flag, save_path):
     fig, axes = plt.subplots(4, 4, figsize=(15, 15))
     axes = axes.flatten()
 
@@ -276,26 +276,23 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height,
             print(f"No data for port {port}.")
             continue
 
-        # Determine window range if not specified
-        if window_range is None:
-            data_min = data.min()
-            data_max = data.max()
-            window_range_port = (data_min, data_max)
+        # Determine window range
+        if window_range is not None:
+            # Apply window range to bins
+            bin_mask = (bins >= window_range[0]) & (bins <= window_range[1])
+            bins_window = bins[bin_mask]
         else:
-            window_range_port = window_range
+            bins_window = bins
 
-        # Apply window range
-        data_in_range = data[(data >= window_range_port[0]) & (data <= window_range_port[1])]
+        # Apply window range to data
+        data_in_range = data[(data >= bins_window[0]) & (data <= bins_window[-1])]
 
         if data_in_range.size == 0:
             print(f"No data in the specified window range for port {port}.")
             continue
 
-        # Create histogram
-        xlabel = 'Energy (eV)' if energy_flag else 'Time of Flight (µs)'
-        bins = np.arange(window_range_port[0], window_range_port[1] + bin_width, bin_width)
-
-        counts, bin_edges = np.histogram(data_in_range, bins=bins)
+        # Create histogram using provided bins
+        counts, bin_edges = np.histogram(data_in_range, bins=bins_window)
 
         # Normalize counts
         max_count = counts.max()
@@ -323,6 +320,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height,
         # Set labels and title
         t0_value = t0s[idx] if t0s is not None and t0s[idx] is not None else 'N/A'
         retardation_value = retardations[idx] if retardations is not None else 'N/A'
+        xlabel = 'Energy (eV)' if energy_flag else 'Time of Flight (µs)'
         ax.set_title(f'Run {run}, Retardation {retardation_value}, Port {port}, t0={t0_value}', fontsize=10)
         ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel('Normalized Counts', fontsize=12)
@@ -339,6 +337,7 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, window_range, height,
     else:
         plt.show()
     plt.close(fig)
+
 
 
 def plot_spectra_waterfall(data_dict, ports, window_range, height, distance, prominence, bin_width, offset, energy_flag, save_path):
