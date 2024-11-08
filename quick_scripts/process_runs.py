@@ -364,7 +364,7 @@ def main():
                             else:
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
-            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=retardation))) - retardation
+            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=retardation)))
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
                 for scan_value, data in port_data.items():

@@ -140,7 +140,7 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
         energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
     """
     # Load the scalers
-    model_dir = "/sdf/scratch/users/a/ajshack/test2"
+    model_dir = "/sdf/scratch/users/a/ajshack/tmox1016823/model_trials/1"
     model_path = os.path.join(model_dir, "saved_model")
     scaler_X_path = os.path.join(model_dir, "scaler_X.joblib")
     scaler_y_path = os.path.join(model_dir, "scaler_y.joblib")
@@ -180,7 +180,7 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
         tof_col = tof_batch
 
         # Combine features
-        input_features = np.column_stack([x1, tof_col, interaction_terms])
+        input_features = np.column_stack([x1, x2.reshape(-1, 1), interaction_terms])
 
         # Scale the input features
         input_scaled = scaler_X.transform(input_features)
