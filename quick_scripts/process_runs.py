@@ -2,7 +2,7 @@
 
 import argparse
 import os
-from peak_offset import (load_and_preprocess_data, convert_tof_to_energy, find_t0,
+from peak_offset import (load_and_preprocess_data, find_t0,
                          plot_spectra, convert_data_to_energy, load_converted_h5, determine_subplot_grid)
 import h5py
 import numpy as np
@@ -241,7 +241,7 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, tof
     energy_bins = None  # Initialize energy_bins
 
     # Convert TOF bins to energy bins with retardation=0
-    energy_bins = convert_tof_to_energy(tof_bins, retardation=0)
+    energy_bins = convert_tof_to_energy_simple(tof_bins, retardation=0)
 
     for idx, port in enumerate(ports):
         t0 = t0s[idx]
@@ -255,7 +255,7 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, tof
         for scan_value, data in port_data.items():
             data_tof = data - (t0 - 2e-3)
             data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
-            energy_data = convert_tof_to_energy(data_tof, retardation=retardation, batch_size=batch_size)
+            energy_data = convert_tof_to_energy_simple(data_tof, retardation=retardation, batch_size=batch_size)
             data_dict_energy[port][scan_value] = energy_data
     return data_dict_energy, energy_bins
 
@@ -364,7 +364,7 @@ def main():
                             else:
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
-            energy_bins = np.array(sorted(convert_tof_to_energy(tof_bins, retardation=retardation))) - retardation
+            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=retardation))) - retardation
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
                 for scan_value, data in port_data.items():
@@ -494,7 +494,7 @@ def main():
                     print(f"All energy data saved to '{save_file}'.")
             tof_bins = tof_bins - (t0s[0] - 2e-3)
             tof_bins = tof_bins[tof_bins > 0]
-            energy_bins = np.array(sorted(convert_tof_to_energy(tof_bins, retardation=0))) - retardation
+            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=0))) - retardation
             print(energy_bins)
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
