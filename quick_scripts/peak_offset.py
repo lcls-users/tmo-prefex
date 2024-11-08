@@ -105,12 +105,12 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, tof_bins, batch_
             scan_var_keys = sorted(port_data.keys())
             energy_dict[port] = {}
             for s in scan_var_keys:
-                data = subtract_t0(port_data[s], t0, 2e-3)
+                data = subtract_t0(port_data[s], t0, 0)
                 energy_data = convert_tof_to_energy_simple(data, retardation=retardation, batch_size=batch_size)
                 energy_dict[port][s] = energy_data
         else:
             if port_data is not None and len(port_data) > 0:
-                data = subtract_t0(port_data, t0, 2e-3)
+                data = subtract_t0(port_data, t0, 0)
                 energy_data = convert_tof_to_energy_simple(data, retardation=retardation, batch_size=batch_size)
                 energy_dict[port] = energy_data
                 data_dict[port][s] = data
@@ -224,10 +224,8 @@ def plot_spectra(data_dict, run, retardations, t0s, ports, bins, window_range, h
         ax = axes[idx]
         data = data_dict.get(port)
         if energy_flag:
-            data = data - retardations[idx]
+            data = data # - retardation if you are in pass energy
         if data is None or len(data) == 0:
-            tof_bins = tof_bins - (t0s[0] - 2e-3)
-            tof_bins = tof_bins[tof_bins > 0]            
             print(f"No data for port {port}.")
             continue
 

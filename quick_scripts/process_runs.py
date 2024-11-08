@@ -307,7 +307,7 @@ def main():
         print(f"\nProcessing Run {run}...")
         retardation = retardations[idx]
         if args.photon_energy:
-            # Load data
+            # Load data, scan var, and gmd -- convert to us -- mask negative values out
             data_dict, scan_var_1_unq = load_and_preprocess_data_photon_energy(run, args.ports,
                                                                                sample_size=args.sample_size)
             if data_dict is None:
@@ -364,11 +364,11 @@ def main():
                             else:
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
-            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=retardation)))
+            energy_bins = np.array(sorted(convert_tof_to_energy_simple(tof_bins, retardation=0)))
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]
                 for scan_value, data in port_data.items():
-                    data_tof = data - (t0s[i] - 2e-3)
+                    data_tof = data - (t0s[i])# - 2e-3)
                     data_dict[port][scan_value] = data_tof[data_tof > 0]
             if args.plotting:
                 if args.hv_select:

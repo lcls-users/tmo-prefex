@@ -140,7 +140,7 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
         energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
     """
     # Load the scalers
-    model_dir = "/sdf/scratch/users/a/ajshack/tmox1016823/model_trials/1"
+    model_dir = "/sdf/scratch/users/a/ajshack/tmox1016823/model_trials/2"
     model_path = os.path.join(model_dir, "saved_model")
     scaler_X_path = os.path.join(model_dir, "scaler_X.joblib")
     scaler_y_path = os.path.join(model_dir, "scaler_y.joblib")
@@ -166,7 +166,7 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
         # Based on your preprocessing: [retardation, tof, interaction_terms]
         # Interaction terms: [retardation * log(tof), retardation^2, (log(tof))^2]
         x1 = np.full_like(tof_batch, retardation)  # Convert scalar to 1D array
-        x2 = np.log(tof_batch)
+        x2 = np.log2(tof_batch)
 
         # Compute interaction terms
         interaction_terms = np.column_stack([
@@ -174,10 +174,6 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
             x1 ** 2,        # Retardation squared
             x2 ** 2         # log(Time of Flight) squared
         ])
-
-        # Create input array
-        # [retardation, tof, interaction_term1, interaction_term2, interaction_term3]
-        tof_col = tof_batch
 
         # Combine features
         input_features = np.column_stack([x1, x2.reshape(-1, 1), interaction_terms])
@@ -190,7 +186,7 @@ def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
 
         # Inverse transform the predictions
         y_pred_log = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
-        y_pred = np.exp(y_pred_log)  # Assuming y was log-transformed during training
+        y_pred = 2 ** (y_pred_log)
 
         # Store predictions
         all_predictions.append(y_pred)
