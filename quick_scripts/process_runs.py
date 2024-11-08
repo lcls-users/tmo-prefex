@@ -256,7 +256,6 @@ def convert_data_to_energy_photon_energy(data_dict, t0s, ports, retardation, tof
             data_tof = data_tof[data_tof > 0]  # Keep positive TOF values
             energy_data = convert_tof_to_energy(data_tof, retardation=retardation, batch_size=batch_size)
             data_dict_energy[port][scan_value] = energy_data
-            data_dict[port][scan_value] = data_tof
     return data_dict_energy, energy_bins
 
 
@@ -364,8 +363,6 @@ def main():
                             else:
                                 print(f"No energy data for port {port} to save.")
                     print(f"All energy data saved to '{save_file}'.")
-            tof_bins = tof_bins - (t0s[0] - 2e-3)
-            tof_bins = tof_bins[tof_bins > 0]
             energy_bins = np.array(sorted(convert_tof_to_energy(tof_bins, retardation=retardation))) - retardation
             for i, port in enumerate(args.ports):
                 port_data = data_dict[port]

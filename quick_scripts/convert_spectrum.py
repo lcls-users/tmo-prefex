@@ -101,6 +101,138 @@ def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
 
     return energy_spectrum
 
+
+def load_scalers_simple(scaler_X_path, scaler_y_path):
+    """
+    Load scaler_X and scaler_y from the specified paths using joblib.
+
+    Parameters:
+        scaler_X_path (str): Path to the scaler for input features.
+        scaler_y_path (str): Path to the scaler for the output variable.
+
+    Returns:
+        scaler_X (StandardScaler): Fitted scaler for input features.
+        scaler_y (StandardScaler): Fitted scaler for the output variable.
+    """
+    if os.path.exists(scaler_X_path) and os.path.exists(scaler_y_path):
+        scaler_X = joblib.load(scaler_X_path)
+        scaler_y = joblib.load(scaler_y_path)
+        print(f"Scalers loaded from {scaler_X_path} and {scaler_y_path}")
+        return scaler_X, scaler_y
+    else:
+        raise FileNotFoundError(f"Scaler files not found at {scaler_X_path} and/or {scaler_y_path}")
+
+
+def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_X_path, scaler_y_path, batch_size=1024):
+    """
+    Converts a TOF array to an energy spectrum using the trained model.
+
+    Parameters:
+        tof_array (np.ndarray): Input time-of-flight array.
+        t0 (float): The t0 value to subtract from TOF data.
+        retardation (float): Retardation value.
+        model_path (str): Path to the trained Keras SavedModel directory.
+        scaler_X_path (str): Path to the scaler for input features.
+        scaler_y_path (str): Path to the scaler for the output variable.
+        batch_size (int): Batch size for processing data.
+
+    Returns:
+        energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
+    """
+    # Load the scalers
+    scaler_X, scaler_y = load_scalers_simple(scaler_X_path, scaler_y_path)
+
+    # Load the trained model
+    main_model = tf.keras.models.load_model(model_path)
+    print(f"Model loaded from {model_path}")
+
+    # Initialize list to store predictions
+    all_predictions = []
+
+    # Total number of samples
+    total_length = len(tof_array)
+    print(f"Processing TOF array with {total_length} samples.")
+
+    # Process data in batches
+    for i in range(0, total_length, batch_size):
+        # Extract batch
+        tof_batch = tof_array[i:i+batch_size]
+
+        # Preprocess data
+        hist_t0 = tof_batch - t0
+        hist_t0 = hist_t0[hist_t0 > 0] * 1e6  # Keep positive values and convert to microseconds
+        if hist_t0.size == 0:
+            continue
+
+        # Prepare input features
+        # Based on your preprocessing: [retardation, tof, interaction_terms]
+        # Interaction terms: [retardation * log(tof), retardation^2, (log(tof))^2]
+        x1 = np.full_like(hist_t0, retardation)  # Convert scalar to 1D array
+        x2 = np.log(hist_t0)
+
+        # Compute interaction terms
+        interaction_terms = np.column_stack([
+            x1 * x2,        # Interaction term: Retardation * log(Time of Flight)
+            x1 ** 2,        # Retardation squared
+            x2 ** 2         # log(Time of Flight) squared
+        ])
+
+        # Create input array
+        # [retardation, tof, interaction_term1, interaction_term2, interaction_term3]
+        tof_col = hist_t0
+
+        # Combine features
+        input_features = np.column_stack([x1, tof_col, interaction_terms])
+
+        # Scale the input features
+        input_scaled = scaler_X.transform(input_features)
+
+        # Make predictions
+        y_pred_scaled = main_model.predict(input_scaled, batch_size=batch_size).flatten()
+
+        # Inverse transform the predictions
+        y_pred_log = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
+        y_pred = np.exp(y_pred_log)  # Assuming y was log-transformed during training
+
+        # Store predictions
+        all_predictions.append(y_pred)
+
+    # Concatenate all predictions
+    if all_predictions:
+        energy_spectrum = np.concatenate(all_predictions)
+    else:
+        energy_spectrum = np.array([])  # Return empty array if no predictions
+
+    print(f"Energy spectrum generated with {energy_spectrum.size} samples.")
+    return energy_spectrum
+
+
+def run_inference(tof_array, t0, retardation, model_dir):
+    """
+    Runs inference to convert TOF data to energy spectrum.
+    Parameters:
+        tof_array (np.ndarray): Input time-of-flight array.
+        t0 (float): The t0 value to subtract from TOF data.
+        retardation (float): Retardation value.
+        model_dir (str): Directory where the model and scalers are saved.
+
+    Returns:
+        energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
+    """
+    # Define paths
+    model_dir = "/sdf/scratch/users/a/ajshack/test2"
+    model_path = os.path.join(model_dir, "saved_model")
+    scaler_X_path = os.path.join(model_dir, "scaler_X.joblib")
+    scaler_y_path = os.path.join(model_dir, "scaler_y.joblib")
+
+    # Convert TOF to energy
+    energy_spectrum = convert_tof_to_energy_simple(
+        tof_array, t0, retardation, model_path, scaler_X_path, scaler_y_path
+    )
+
+    return energy_spectrum
+
+
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Process TOF data from an HDF5 file and plot the energy spectrum.")

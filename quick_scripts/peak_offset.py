@@ -13,7 +13,7 @@ from scipy.signal import find_peaks
 # Add the path to your custom model modules if needed
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
 from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
-from convert_spectrum import convert_tof_to_energy
+from convert_spectrum import convert_tof_to_energy, run_inference
 import math
 
 def append_to_save_path(save_path, suffix):
