@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
+from convert_spectrum import convert_tof_to_energy_simple
 
 
 def plot_hv_pcolormesh(data_dict, run, ports, bins, window_range, energy_flag, retardation, save_path):

@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import sys
 import pickle  # Ensure pickle is imported
+import joblib
 
 # Add the path to your custom model modules if needed
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
-from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
+#from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
 
 
 def load_scalers(scalers_path):
@@ -41,18 +42,17 @@ def parse_params_line(params_line):
     return params_dict
 
 
-def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
-    """
-    Converts a TOF array to an energy spectrum.
+"""def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
+    #
+    #Converts a TOF array to an energy spectrum.
 
-    Parameters:
-        tof_array (np.ndarray): Input time-of-flight array.
-        retardation (float): Retardation value.
-        batch_size (int): Batch size for processing data.
+    #Parameters:
+    #    tof_array (np.ndarray): Input time-of-flight array.
+    #    retardation (float): Retardation value.
+    #    batch_size (int): Batch size for processing data.
 
-    Returns:
-        energy_spectrum (np.ndarray): Output energy spectrum.
-    """
+    #Returns:
+    #    energy_spectrum (np.ndarray): Output energy spectrum.
     # Hard-coded paths and parameters
     scalers_path = '/sdf/scratch/users/a/ajshack/scalers.pkl'
     model_path = '/sdf/scratch/users/a/ajshack/test2/12_tofs_complex_swish/main_model'
@@ -99,7 +99,7 @@ def convert_tof_to_energy(tof_array, retardation, batch_size=1024):
     else:
         energy_spectrum = np.array([])  # Return empty array if no predictions
 
-    return energy_spectrum
+    return energy_spectrum"""
 
 
 def load_scalers_simple(scaler_X_path, scaler_y_path):
@@ -123,7 +123,7 @@ def load_scalers_simple(scaler_X_path, scaler_y_path):
         raise FileNotFoundError(f"Scaler files not found at {scaler_X_path} and/or {scaler_y_path}")
 
 
-def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_X_path, scaler_y_path, batch_size=1024):
+def convert_tof_to_energy_simple(tof_array, retardation, batch_size=1024):
     """
     Converts a TOF array to an energy spectrum using the trained model.
 
@@ -140,6 +140,10 @@ def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_
         energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
     """
     # Load the scalers
+    model_dir = "/sdf/scratch/users/a/ajshack/test2"
+    model_path = os.path.join(model_dir, "saved_model")
+    scaler_X_path = os.path.join(model_dir, "scaler_X.joblib")
+    scaler_y_path = os.path.join(model_dir, "scaler_y.joblib")
     scaler_X, scaler_y = load_scalers_simple(scaler_X_path, scaler_y_path)
 
     # Load the trained model
@@ -158,17 +162,11 @@ def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_
         # Extract batch
         tof_batch = tof_array[i:i+batch_size]
 
-        # Preprocess data
-        hist_t0 = tof_batch - t0
-        hist_t0 = hist_t0[hist_t0 > 0] * 1e6  # Keep positive values and convert to microseconds
-        if hist_t0.size == 0:
-            continue
-
         # Prepare input features
         # Based on your preprocessing: [retardation, tof, interaction_terms]
         # Interaction terms: [retardation * log(tof), retardation^2, (log(tof))^2]
-        x1 = np.full_like(hist_t0, retardation)  # Convert scalar to 1D array
-        x2 = np.log(hist_t0)
+        x1 = np.full_like(tof_batch, retardation)  # Convert scalar to 1D array
+        x2 = np.log(tof_batch)
 
         # Compute interaction terms
         interaction_terms = np.column_stack([
@@ -179,7 +177,7 @@ def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_
 
         # Create input array
         # [retardation, tof, interaction_term1, interaction_term2, interaction_term3]
-        tof_col = hist_t0
+        tof_col = tof_batch
 
         # Combine features
         input_features = np.column_stack([x1, tof_col, interaction_terms])
@@ -204,32 +202,6 @@ def convert_tof_to_energy_simple(tof_array, t0, retardation, model_path, scaler_
         energy_spectrum = np.array([])  # Return empty array if no predictions
 
     print(f"Energy spectrum generated with {energy_spectrum.size} samples.")
-    return energy_spectrum
-
-
-def run_inference(tof_array, t0, retardation, model_dir):
-    """
-    Runs inference to convert TOF data to energy spectrum.
-    Parameters:
-        tof_array (np.ndarray): Input time-of-flight array.
-        t0 (float): The t0 value to subtract from TOF data.
-        retardation (float): Retardation value.
-        model_dir (str): Directory where the model and scalers are saved.
-
-    Returns:
-        energy_spectrum (np.ndarray): Output energy spectrum in the original scale.
-    """
-    # Define paths
-    model_dir = "/sdf/scratch/users/a/ajshack/test2"
-    model_path = os.path.join(model_dir, "saved_model")
-    scaler_X_path = os.path.join(model_dir, "scaler_X.joblib")
-    scaler_y_path = os.path.join(model_dir, "scaler_y.joblib")
-
-    # Convert TOF to energy
-    energy_spectrum = convert_tof_to_energy_simple(
-        tof_array, t0, retardation, model_path, scaler_X_path, scaler_y_path
-    )
-
     return energy_spectrum
 
 
@@ -259,7 +231,7 @@ def main():
 
     # Convert TOF to energy spectrum
     print("Starting TOF to energy conversion...")
-    energy_spectrum = convert_tof_to_energy(tof_data, args.t0, args.retardation, args.batch_size)
+    energy_spectrum = convert_tof_to_energy_simple(tof_data, args.t0, args.retardation, args.batch_size)
     print(f"Energy spectrum calculated with {len(energy_spectrum)} entries.")
 
     if energy_spectrum.size == 0:

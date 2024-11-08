@@ -12,8 +12,8 @@ from scipy.signal import find_peaks
 
 # Add the path to your custom model modules if needed
 sys.path.append('/sdf/home/a/ajshack/TOF_ML/src')
-from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
-from convert_spectrum import convert_tof_to_energy, run_inference
+#from models.tof_to_energy_model import TofToEnergyModel, InteractionLayer, ScalingLayer, LogTransformLayer
+from convert_spectrum import convert_tof_to_energy_simple
 import math
 
 def append_to_save_path(save_path, suffix):
@@ -97,7 +97,7 @@ def load_converted_h5(save_file, ports, scan=False):
 
 def convert_data_to_energy(data_dict, retardations, ports, t0s, tof_bins, batch_size=2048, scan=False):
     energy_dict = {}
-    energy_bins = convert_tof_to_energy(tof_bins, retardation=0)  # Convert bins to energy with retardation=0
+    energy_bins = convert_tof_to_energy_simple(tof_bins, retardation=0)  # Convert bins to energy with retardation=0
     for idx, (port, retardation) in enumerate(zip(ports, retardations)):
         port_data = data_dict.get(port)
         t0 = t0s[idx]
@@ -106,12 +106,12 @@ def convert_data_to_energy(data_dict, retardations, ports, t0s, tof_bins, batch_
             energy_dict[port] = {}
             for s in scan_var_keys:
                 data = subtract_t0(port_data[s], t0, 2e-3)
-                energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
+                energy_data = convert_tof_to_energy_simple(data, retardation=retardation, batch_size=batch_size)
                 energy_dict[port][s] = energy_data
         else:
             if port_data is not None and len(port_data) > 0:
                 data = subtract_t0(port_data, t0, 2e-3)
-                energy_data = convert_tof_to_energy(data, retardation=retardation, batch_size=batch_size)
+                energy_data = convert_tof_to_energy_simple(data, retardation=retardation, batch_size=batch_size)
                 energy_dict[port] = energy_data
                 data_dict[port][s] = data
     return energy_dict, data_dict, energy_bins
