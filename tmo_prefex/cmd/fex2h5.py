@@ -202,7 +202,7 @@ KeyboardInterrupt
     #### Setting up the datasource ####
     ###################################
     ds = psana.DataSource(exp=expname,run=runnums)
-    for i in range(len(runnums)):
+    for i, runnum in enumerate(runnums):
         run = next(ds.runs()) # don't call next unless you know it's there...
         # 1. Setup detector configs (determining runs, saves)
         runs = []
@@ -222,7 +222,7 @@ KeyboardInterrupt
         t0 = run.timestamp
         for sid, step in enumerate(run.steps()):
             stepname = f"step_{sid+1:02d}"
-            stepinfo = {}
+            stepinfo = {'run': runnum}
             for it in run.scaninfo.items():
                 name = it[0][0]
                 v = run.Detector(name)(step)
