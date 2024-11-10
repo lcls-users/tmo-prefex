@@ -1,6 +1,6 @@
 #!/sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
 
-from typing import List,Dict,Optional,Tuple,Union
+from typing import List,Dict,Optional,Tuple,Union,Any
 from collections.abc import Iterator
 from pathlib import Path
 import sys
@@ -50,10 +50,11 @@ detector_configs = {
 }
 
 @source
-def run_events(run):
+def run_events(run, t0):
     # Note: using timesamp_diff instead of sequence number
     # because it maintains uniqueness if fex2h5 is run in parallel.
-    t0 = run.timestamp
+    #t0 = run.timestamp
+
     # note, that these numbers are O(112_538_353)
     # and typically step by 120_000
     # maybe nanoseconds units?
@@ -62,9 +63,10 @@ def run_events(run):
         yield (t+500)//1000, evt
 
 @stream
-def write_out(inp: Iterator[Batch], outname: str) -> Iterator[int]:
-    """ Accumulate all events into one giant file.
-        Write accumulated result with each iterate.
+def write_out(inp: Iterator[Batch], outname: str,
+              stepname: str, stepinfo: Dict[str,Any]) -> Iterator[int]:
+    """Accumulate all events into one giant file.
+       Write accumulated result with each iterate.
     """
     batch0 = None
     for i, batch in enumerate(inp):
@@ -75,7 +77,10 @@ def write_out(inp: Iterator[Batch], outname: str) -> Iterator[int]:
         # Extend instead of writing separate files.
         print('writing batch %i to %s'%(i,outname))
         with h5py.File(outname,'w') as f:
-            batch0.write_h5(f)
+            g = f.create_group(stepname)
+            for k, v in stepinfo.items():
+                g.attrs.create(k, data=v)
+            batch0.write_h5(g)
 
         try:
             nev = len(batch[next(batch.keys())].events)
@@ -83,10 +88,15 @@ def write_out(inp: Iterator[Batch], outname: str) -> Iterator[int]:
             nev = 0
         yield nev
 
-def serialize_h5(batch: Batch) -> bytes:
+def serialize_h5(batch: Batch,
+                 stepname: str,
+                 stepinfo: Dict[str,Any]) -> bytes:
     with io.BytesIO() as f:
         with h5py.File(f, 'w') as h:
-            batch.write_h5(h)
+            g = f.create_group(stepname)
+            for k, v in stepinfo.items():
+                g.attrs.create(k, data=v)
+            batch.write_h5(g)
         return f.getvalue()
 
 def process_all(tps):
@@ -120,6 +130,12 @@ def live_events(events, max_consecutive=100):
         for e in errs:
             print(errs[-consecutive:])
     print(f"Processed {ev} events with {len(errs)} dropped.")
+
+def mk_sizes(upto=1024):
+    # geometric sequence (1, 2, 4, ..., 512, 1024, 1024, ...)
+    sizes = gseq(2) >> takewhile(lambda x: x<upto)
+    sizes << seq(upto, 0)
+    return sizes
 
 @app.command()
 def main(nshots: int, expname: str,
@@ -188,8 +204,6 @@ KeyboardInterrupt
     ds = psana.DataSource(exp=expname,run=runnums)
     for i in range(len(runnums)):
         run = next(ds.runs()) # don't call next unless you know it's there...
-        outname = '%s/hits.%s.run_%03i%s.h5'%(scratchdir,expname,
-                                              run.runnum,rank_suf)
         # 1. Setup detector configs (determining runs, saves)
         runs = []
         saves = []
@@ -205,48 +219,58 @@ KeyboardInterrupt
             print(f"Saving config to {cfgname}")
             Config.from_dict(params).save(cfgname, overwrite=True)
 
-        # geometric sequence (1, 2, 4, ..., 512, 1024, 1024, ...)
-        sizes = gseq(2) >> takewhile(lambda x: x<1024)
-        sizes << seq(1024, 0)
-        # 2. Assemble the stream to execute
+        t0 = run.timestamp
+        for sid, step in enumerate(run.steps()):
+            stepname = f"step_{sid+1:02d}"
+            stepinfo = {}
+            for it in run.scaninfo.items():
+                name = it[0][0]
+                v = run.Detector(name)(step)
+                if name == 'step_value':
+                    # If present, it should be defined for all steps.
+                    v = int(v)
+                    stepname = f"step_{v:02d}"
+                else:
+                    stepinfo[name] = v
 
-        # - Start from a stream of (eventnum, event).
-        s = run_events(run)
-        if nshots > 0: # truncate to nshots?
-            s >>= take(nshots)
-        # - Run those through both run_hsds and run_gmds,
-        #   producing a stream of ( Dict[DetectorID,HsdData],
-        #                           Dict[DetectorID,GmdData] )
-        s >>= split(*runs)
-        # - but don't pass items that contain any None-s.
-        #   (note: classes test as True)
-        s >>= live_events()
-        s >>= map(process_all)
-        # - Now chop the stream into lists of length n.
-        s >>= chop(512)
-        # - Now save each grouping as a "Batch".
-        s >>= xmap(batch_data, saves)
-        # - Now group those by increasing size and concatenate them.
-        # - This makes increasingly large groupings of the output data.
-        #s >>= chopper([1, 10, 100, 1000]) >> map(concat_batch) # TODO
+            # * Assemble the stream to execute
+            #   - Start from a stream of (eventnum, event).
+            s = run_events(step, t0)
 
-        # 3. call send_hdf on ea. element passed
-        #s >> tap(send_hdf)
-        # 4. Further combine these into larger and larger
-        #    chunk sizes for saving.
-        s >>= variable_chunks(sizes) >> map(Batch.concat)
+            if nshots > 0: # truncate to nshots?
+                s >>= take(nshots)
+            #   - Run those through both run_hsds and run_gmds,
+            #     producing a stream of ( Dict[DetectorID,HsdData],
+            #                             Dict[DetectorID,GmdData] )
+            s >>= split(*runs)
+            #   - but don't pass items that contain any None-s.
+            #     (note: classes test as True)
+            s >>= live_events()
+            s >>= map(process_all)
+            #   - chop the stream into lists of length n.
+            s >>= chop(512)
+            #   - save each grouping as a "Batch".
+            s >>= xmap(batch_data, saves)
+            #   - Further combine these into larger and larger
+            #     chunk sizes for saving.
+            s >>= variable_chunks(mk_sizes()) >> map(Batch.concat)
 
-        # 5. The entire stream "runs" when connected to a sink:
-        if dial is None:
-            s >>= write_out(outname)
-        else:
-            send_pipe = map(serialize_h5) >> pusher(dial, 1)
-            # do both hdf5 file writing
-            # and send_pipe.  Use cut[0] to pass only
-            # the result of write_out (event counts).
-            s >>= split(write_out(outname), send_pipe) \
-                  >> cut[0]
-        for stat in s >> clock():
-            print(stat, flush=True)
+            outname = '%s/hits.%s.run_%03i.%s%s.h5'%(
+                        scratchdir, expname, run.runnum,
+                        stepname, rank_suf)
+            # * The entire stream "runs" when connected to a sink:
+            if dial is None:
+                s >>= write_out(outname, stepname, stepinfo)
+            else:
+                send_pipe = xmap(serialize_h5, stepname, stepinfo) \
+                            >> pusher(dial, 1)
+                # do both hdf5 file writing
+                # and send_pipe.  Use cut[0] to pass only
+                # the result of write_out (event counts).
+                s >>= split(write_out(outname, stepname, stepinfo),
+                            send_pipe) \
+                      >> cut[0]
+            for stat in s >> clock():
+                print(stat, flush=True)
 
     print("Hello, I'm done now.  Have a most excellent day!")
