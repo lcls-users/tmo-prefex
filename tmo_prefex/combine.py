@@ -5,7 +5,7 @@ from .Config import DetectorConfig
 from .Hsd import HsdConfig, WaveData, FexData
 from .Gmd import GmdConfig, GmdData
 from .Spect import SpectConfig, SpectData # was Vls?
-from .utils import concat
+from .utils import concat, calc_offsets
 
 import numpy as np
 from stream import filter
@@ -89,7 +89,7 @@ class Batch(dict):
                     if tuple(sz) != tuple(sz2):
                         raise ValueError(f"Length mismatch between keys {sz_key} and {sz_key2}: {sz} vs. {sz2}")
 
-                off = np.cumsum([0] + sz[:-1])
+                off = calc_offsets(sz)
                 u = [v] + [d[idx][k] for d in data]
                 for x, o in zip(u, off):
                     x += o

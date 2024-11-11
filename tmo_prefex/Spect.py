@@ -6,7 +6,7 @@ from stream import stream
 
 import numpy as np
 
-from .utils import concat
+from .utils import concat, calc_offsets
 
 def getCentroid(data,pct=.8):
     csum = np.cumsum(data.astype(float))
@@ -139,7 +139,6 @@ def save_spect(data: List[SpectData]) -> Dict[str,Any]:
         vsize = np.array([x.vsize for x in d1], dtype=np.int32),
     )
     if data[0].cfg.save_wv: # capturing raw x.v
-        ans['offsets'] = ans['vsize'].astype('uint64').cumsum() \
-                         - ans['vsize'][0]
+        ans['offsets'] = calc_offsets(ans['vsize'])
         ans['wv'] = concat([x.v for x in d1])
     return ans
