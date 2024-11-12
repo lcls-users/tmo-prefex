@@ -23,11 +23,17 @@ ids = [  0,  22,  45, 112,
         90, 202, 225, 247,
        270,  67, 315, 292 ]
 
-def load_h5(buf: bytes) -> Batch:
+def load_h5_file(fname) -> Batch:
+    with h5py.File(fname) as h:
+        step = list(h.keys())[0]
+        return Batch.from_h5(h[step])
+
+def load_h5_buf(buf: bytes) -> Batch:
     try:
         with io.BytesIO(buf) as f:
             with h5py.File(f, 'r') as h:
-                return Batch.from_h5(h)
+                step = list(h.keys())[0]
+                return Batch.from_h5(h[step])
     except (IOError, OSError):
         print(f"Error reading h5 from buffer with length {len(buf)}", flush=True)
         #with open("dat.h5", "wb") as f:
@@ -42,22 +48,19 @@ def create_hist(tofs, start, stop, nbins):
     counts, _ = np.histogram(tofs, bins=nbins, range=(start,stop))
     return counts
 
-def load_h5_file(fname):
-    with h5py.File(fname) as f:
-        return Batch.from_h5(f)
-
 @run.command()
 def tof_hist(files: Annotated[Optional[List[Path]], typer.Argument()] = None,
              dial: Annotated[Optional[str], typer.Option()] = None,
              start: Optional[int] = 4500,
-             stop: Optional[int] = 9000,
+             stop:  Optional[int] = 9000,
              nbins: Optional[int] = 1000,
             ):
 
     if files is not None:
         src = stream.Source(files) >> stream.map(load_h5_file)
     elif dial is not None:
-        src = puller(dial, 1) >> stream.map(load_h5) >> stream.filter(lambda x: x is not None)
+        src = puller(dial, 1) >> stream.map(load_h5_buf) \
+                    >> stream.filter(lambda x: x is not None)
     else:
         raise ValueError("Must be run with either fname or --dial")
 
@@ -169,7 +172,7 @@ def plot_ned(ned):
     add = 0
     for idx, v in ned.items():
         x = np.arange(len(v))
-        v[0] *= 1e-3
+        v[0] = 0 # zero this bin so it doesn't get in the way
         plt.step(x, v+add, label=str(idx))
         add += v.max()
     plt.legend()
