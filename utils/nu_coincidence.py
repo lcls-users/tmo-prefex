@@ -12,14 +12,16 @@ def main():
     path = sys.argv[1]
     filenames = [nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))]
     hist = np.zeros((1<<10,1<<10),dtype=np.uint64)
+    #hist = np.zeros((1<<10,1<<10),dtype=np.uint64)
     h = {}
     tofs = {}
     addresses = {}
     nedges = {}
     maxtof:np.uint32 = 1<<15
-    t0=11500
+    t0=11750
     scale = 1
     for name in filenames:
+        print(name)
         with h5py.File(os.path.join(path,name),'r') as f:
             runstr = [k for k in f.keys()][0]
             detstr = 'mrco_hsd'
@@ -59,7 +61,7 @@ def main():
     #plt.imshow(falsecoince,clim=(0,10))
     #plt.colorbar()
     #plt.show()
-    plt.imshow(hist,clim=(0,10))
+    plt.imshow(hist,clim=(0,25))
     plt.colorbar()
     plt.show()
 

@@ -1,7 +1,8 @@
 #!/usr/bin/bash
 
 #SBATCH --partition=milano
-#SBATCH --account=lcls:tmox1016823
+#SBATCH --account=lcls:tmol1034523
+###SBATCH --account=lcls:tmox1016823
 #SBATCH --reservation=lcls:earlyscience
 #SBATCH --job-name=fex2h5
 #SBATCH --output=../output-%j.stdout
@@ -9,7 +10,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=8g
-#SBATCH --time=0-05:00:00
+#SBATCH --time=0-10:00:00
 #SBATCH --mail-user=coffee@slac.stanford.edu
 #SBATCH --mail-type=FAIL
 #SBATCH --gpus 0
