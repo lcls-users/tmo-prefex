@@ -42,6 +42,7 @@ detectors:
   roll_on: 6
   t0: 0
   baselim: 64
+  rate: 6.0e9 # 6 GHz sampling frequency
 - chankey: 1
   id: 22
   <<: *default

@@ -38,6 +38,7 @@ class HsdConfig(BaseModel):
     t0: int = 0
     baselim: int = 1<<6
     # size: int = p[key].sz*p[key].inflate ### need to also multiply by expand #### HERE HERE HERE HERE
+    rate: float = 6.0e9 # digitizer sampling rate (Hz)
 
     def scanedges_stupid(self,d):
         tofs = []
