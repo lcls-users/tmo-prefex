@@ -7,25 +7,27 @@ import re
 
 
 def main():
-    fname = sys.argv[1]
+    fnames = [nm for nm in sys.argv[1:]]
     hist = {}
     maxtof:np.uint32 = 1<<15
     scramble = []
-    with h5py.File(fname,'r') as f:
-        runstr = [k for k in f.keys()][0]
-        detstr = 'mrco_hsd'
-        hsd = f[runstr][detstr]
-        fzp = f[runstr]['spect']
-        xgmd = f[runstr]['xgmd']
-        ports = [p for p in hsd.keys()]
-        portnums = np.sort([int(re.search('_(\d+)$',k).group(1)) for k in ports])
-        print("portnums:\t",portnums)
-        for i,p in enumerate(ports):
-            t = hsd[p]['tofs'][()]
-            tvalid = [v for v in t if v<maxtof]
-            hist.update({p:[0]*maxtof})
-            for v in tvalid:
-                hist[p][v] += 1
+    for name in fnames:
+        with h5py.File(name,'r') as f:
+            runstr = [k for k in f.keys()][0]
+            detstr = 'mrco_hsd'
+            hsd = f[runstr][detstr]
+            fzp = f[runstr]['tmo_fzppiranha']
+            xgmd = f[runstr]['xgmd']
+            ports = [p for p in hsd.keys()]
+            portnums = np.sort([int(re.search('_(\d+)$',k).group(1)) for k in ports])
+            print("portnums:\t",portnums)
+            for i,p in enumerate(ports):
+                t = hsd[p]['tofs'][()]
+                tvalid = [v for v in t if v<maxtof]
+                if p not in hist.keys():
+                    hist.update({p:[0]*maxtof})
+                for v in tvalid:
+                    hist[p][v] += 1
 
     fig,axs = plt.subplots(nrows=4, ncols=4, figsize=(25, 24))
     for i,p in enumerate(hist.keys()):
@@ -42,6 +44,6 @@ if __name__ == "__main__":
     if len(sys.argv)>1:
         main()
     else:
-        print('point me to an .h5 file!')
+        print('point me to a list of .h5 files!')
 
 

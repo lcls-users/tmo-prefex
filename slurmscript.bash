@@ -3,14 +3,15 @@
 #SBATCH --partition=milano
 #SBATCH --account=lcls:tmol1034523
 ###SBATCH --account=lcls:tmox1016823
-#SBATCH --reservation=lcls:earlyscience
+###SBATCH --reservation=lcls:onshift
+###SBATCH --reservation=lcls:earlyscience
 #SBATCH --job-name=fex2h5
 #SBATCH --output=../output-%j.stdout
 #SBATCH --error=../output-%j.errout
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=8g
-#SBATCH --time=0-10:00:00
+#SBATCH --mem-per-cpu=32g
+#SBATCH --time=0-08:00:00
 #SBATCH --mail-user=coffee@slac.stanford.edu
 #SBATCH --mail-type=FAIL
 #SBATCH --gpus 0

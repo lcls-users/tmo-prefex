@@ -16,6 +16,7 @@ from Ebeam import *
 #from Vls import *
 from Gmd import *
 from Spect import *
+from Atm import *
 from Config import Config
 from utils import *
 import yaml
@@ -30,15 +31,20 @@ def main(nshots:int,runnums:List[int]):
     #######################
     #### CONFIGURATION ####
     #######################
-    cfgname = '%s/config.yaml'%(os.environ.get('configpath'))
-    is_fex = True 
-    inflate = 2
-    expand = 2
+    cfgname:str = '%s/config.yaml'%(os.environ.get('configpath'))
+    is_fex:bool = True 
+    inflate:int = 2
+    expand:int = 2
+
+    goose:int = 281 # on but mistimed
+    laser:int = 280 # on and timed
+    anylaser:int = 282 # on, either mistimed or timed
 
     runhsd=True
     rungmd=True
     runpiranha=True
-    runtiming=False
+    runatm=True
+    runtiming=True
 
     runvls=False
     runebeam=False
@@ -56,6 +62,7 @@ def main(nshots:int,runnums:List[int]):
     xray = {}
     piranhas = {}
     spect = {}
+    atm = {}
 
 
     ds = psana.DataSource(exp=expname,run=runnums)
@@ -63,6 +70,7 @@ def main(nshots:int,runnums:List[int]):
     hsdnames = {}
     gmdnames = {}
     pirnames = {}
+
     for r in runnums:
         chunk = 0
         run = next(ds.runs())
@@ -75,6 +83,8 @@ def main(nshots:int,runnums:List[int]):
 
         piranhas.update({rkey:{}})
         spect.update({rkey:{}})
+        atm.update({rkey:{}})
+
         
 
         chankeys.update({rkey:{}})
@@ -84,7 +94,6 @@ def main(nshots:int,runnums:List[int]):
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
         pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
 
-        print('writing to %s'%outnames[rkey])
         for hsdname in hsdnames[rkey]:
             port[rkey].update({hsdname:{}})
             chankeys[rkey].update({hsdname:{}})
@@ -122,10 +131,16 @@ def main(nshots:int,runnums:List[int]):
         for pirname in pirnames[rkey]:
             if runpiranha and pirname in detslist[rkey]:
                 piranhas[rkey].update({pirname:run.Detector(pirname)})
-                spect[rkey].update({pirname:Spect(thresh=(1<<3))})
-                spect[rkey][pirname].set_runkey(rkey).set_name(pirname)
                 if re.search('fzp',pirname):
-                    spect[rkey][pirname].setProcessAlgo('piranha')
+                    print('running fzp too')
+                    spect[rkey].update({pirname:Spect(thresh=(1<<3))})
+                    spect[rkey][pirname].set_runkey(rkey).set_name(pirname)
+                    spect[rkey][pirname].setProcessAlgo('piranha_centroid')
+                if re.search('atm',pirname):
+                    print('running atm also!!')
+                    atm[rkey].update({pirname:Atm(thresh=(1<<3))})
+                    atm[rkey][pirname].set_runkey(rkey).set_name(pirname)
+                    atm[rkey][pirname].setProcessAlgo('piranha_edge')
             else:
                 runpiranha = False
 
@@ -133,7 +148,9 @@ def main(nshots:int,runnums:List[int]):
         hsdEvents = []
         gmdEvents = []
         spectEvents = []
+        atmEvents = []
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
+        evrcodes:List(bool) = [False]*288
 
 
         '''
@@ -159,7 +176,10 @@ def main(nshots:int,runnums:List[int]):
                 if piranhas[rkey] is not None:
                     for pirname in pirnames[rkey]:
                         if piranhas[rkey][pirname] is not None:
-                            completeEvent += [spect[rkey][pirname].test(piranhas[rkey][pirname].raw.raw(evt)) ]
+                            if re.search('fzp',pirname):
+                                completeEvent += [spect[rkey][pirname].test(piranhas[rkey][pirname].raw.raw(evt)) ]
+                            if re.search('atm',pirname):
+                                completeEvent += [atm[rkey][pirname].test(piranhas[rkey][pirname].raw.raw(evt)) ]
                         else:
                             completeEvent += [False]
 
@@ -204,7 +224,13 @@ def main(nshots:int,runnums:List[int]):
             ## process piranhas
             if runpiranha and all(completeEvent):
                 for pirname in pirnames[rkey]:
-                    spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
+                    if False and re.search('atm',pirname):
+                        if evrcodes[goose] or not evrcodes[anylaser]:
+                            atm[rkey][pirname].updateref(piranhas[rkey][pirname].raw.raw(evt))
+                        else:
+                            atm[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
+                    if re.search('fzp',pirname):
+                        spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
 
             ## process gmds
             if rungmd and all(completeEvent):
@@ -248,6 +274,7 @@ def main(nshots:int,runnums:List[int]):
                     gmdEvents += [eventnum]
                 if runpiranha:
                     spectEvents += [eventnum]
+                    atmEvents += [eventnum]
 
             if init:
                 init = False
@@ -257,7 +284,10 @@ def main(nshots:int,runnums:List[int]):
                 for gmdname in xray[rkey].keys():
                     xray[rkey][gmdname].set_initState(False)
                 for pirname in spect[rkey].keys():
-                    spect[rkey][pirname].set_initState(False)
+                    if re.search('fzp',pirname):
+                        spect[rkey][pirname].set_initState(False)
+                    if re.search('atm',pirname):
+                        atm[rkey][pirname].set_initState(False)
 
 
             if runhsd:
@@ -268,11 +298,11 @@ def main(nshots:int,runnums:List[int]):
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
-                elif eventnum<1000 and eventnum%25==0: 
+                elif eventnum<1000 and eventnum%100==0: 
                     for hsdname in hsds[rkey].keys():
                         print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
                 else:
-                    if eventnum%500==0: 
+                    if eventnum%1000==0: 
                         for hsdname in hsds[rkey].keys():
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
@@ -309,9 +339,15 @@ def main(nshots:int,runnums:List[int]):
                     
                     if runpiranha:
                         Spect.update_h5(f,spect,spectEvents)
+                        Spect.update_h5(f,atm,atmEvents)
                         spectEvents.clear()
+                        atmEvents.clear()
                         for name in spect[rkey].keys():
-                            spect[rkey][pirname].reset()
+                            if re.search('fzp',pirname):
+                                spect[rkey][pirname].reset()
+                        for name in atm[rkey].keys():
+                            if re.search('atm',pirname):
+                                atm[rkey][pirname].reset()
                 chunk += 1
 
         # end event loop
