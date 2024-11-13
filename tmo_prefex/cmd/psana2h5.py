@@ -1,5 +1,3 @@
-#!/sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
-
 from typing import List,Dict,Optional,Tuple,Union,Any
 from collections.abc import Iterator
 from pathlib import Path
@@ -23,31 +21,11 @@ from lclstream.stream_utils import clock
 
 from ..Config import Config
 from ..stream_utils import variable_chunks, split, xmap
+from ..detectors import detector_configs
 
-from ..Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
-from ..Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
-from ..Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd
-from ..Spect import SpectConfig, SpectData, setup_spects, run_spects, save_spect
 from ..combine import batch_data, Batch
 
-# Some types:
-DetectorID   = Tuple[str, int] # ('hsd', 22)
-DetectorData = Union[WaveData, FexData, GmdData, EbeamData, SpectData]
-EventData    = Dict[DetectorID, DetectorData]
-
 app = typer.Typer(pretty_exceptions_enable=False)
-
-def save_fex(run, params):
-    return setup_hsds(run, params, default_fex)
-
-# Plugin system for detector types:
-detector_configs = {
-    # NOTE: defaults to fex-type hsd setup
-    'hsd': (setup_hsds, run_hsds, save_hsd),
-    'ebeam': (setup_ebeams, run_ebeams, save_ebeam),
-    'gmd': (setup_gmds, run_gmds, save_gmd),
-    'spect': (setup_spects, run_spects, save_spect),
-}
 
 @source
 def run_events(run, t0):
@@ -63,7 +41,7 @@ def run_events(run, t0):
         yield (t+500)//1000, evt
 
 @stream
-def write_out(inp: Iterator[Batch], outname: str,
+def accum_out(inp: Iterator[Batch], outname: str,
               stepname: str, stepinfo: Dict[str,Any]) -> Iterator[int]:
     """Accumulate all events into one giant file.
        Write accumulated result with each iterate.
@@ -81,6 +59,28 @@ def write_out(inp: Iterator[Batch], outname: str,
             for k, v in stepinfo.items():
                 g.attrs.create(k, data=v)
             batch0.write_h5(g)
+
+        try:
+            nev = len(batch[next(batch.keys())].events)
+        except Exception:
+            nev = 0
+        yield nev
+
+@stream
+def write_out(inp: Iterator[Batch], outname: str,
+              stepname: str, stepinfo: Dict[str,Any]) -> Iterator[int]:
+    """Write each batch of events to its own h5 file.
+    TODO: accumulate events until batch.size() passes
+    a threshold.
+    """
+    for i, batch in enumerate(inp):
+        outz = f'{outname[:-3]}.{i:03d}.h5'
+        print('writing batch %i to %s'%(i,outz))
+        with h5py.File(outz,'w') as f:
+            g = f.create_group(stepname)
+            for k, v in stepinfo.items():
+                g.attrs.create(k, data=v)
+            batch.write_h5(g)
 
         try:
             nev = len(batch[next(batch.keys())].events)
@@ -138,15 +138,13 @@ def mk_sizes(upto=1024):
     return sizes
 
 @app.command()
-def main(nshots: int, expname: str,
+def main(expname: str, detectors: str,
          runnums: List[int],
+         config: Optional[Path] = None,
          dial: Optional[str] = None,
-         scratchdir: Optional[str] = None):
-    if scratchdir is None:
-        user = os.environ.get('USER')
-        scratchdir = '/sdf/data/lcls/ds/tmo/%s/scratch/%s/h5files'%(expname,user)
-    if not os.path.exists(scratchdir):
-        os.makedirs(scratchdir)
+         outdir: Optional[Path] = None):
+
+    nshots = 0 # don't truncate
 
     # Check whether MPI is enabled, and adjust output filename
     # appropriately
@@ -159,44 +157,30 @@ def main(nshots: int, expname: str,
     #######################
     #### CONFIGURATION ####
     #######################
-    cfgname = '%s/%s.%s.configs.yaml'%(scratchdir,expname,os.environ.get('USER'))
-    inp_cfg = 'config.yaml'
-    if Path(inp_cfg).exists():
+    if config is None:
+        if rank == 0:
+            print("Warning: empty config.yaml -- all detector settings at default.")
+        cfg = Config() # empty
+    elif config.exists():
         if rank == 0:
             print("Reading config.yaml")
-        cfg = Config.load(inp_cfg)
+        cfg = Config.load(config)
     else:
-        raise ValueError("No config.yaml")
-        #cfg = Config()
+        raise RuntimeError(f"Unable to read {config}")
     params = cfg.to_dict()
 
-    enabled_detectors = ['hsd', 'ebeam', 'gmd', 'spect']
+    # Set config-specific output directory.
+    if outdir is None:
+        user = os.environ.get('USER')
+        outdir = Path('/sdf/data/lcls/ds/tmo/%s/scratch/%s/psana2h5'%(expname,user))
+    outdir = outdir / cfg.hash(8)
+    outdir.mkdir(exist_ok=True, parents=True)
+
+    enabled_detectors = detectors.split(',')
     assert len(enabled_detectors) > 0, "No detectors enabled!"
-    # ['spect', 'ebeam', 'lcams', 'timing', 'xtcav']
-    # note: rename vls <-> spect
-
-    '''
-    timings = []
-    spects = []
-    ebeams = []
-    xtcavs = []
-
-    # for i,run in enumerate(ds.runs()) hangs after last run
-    ^C
-        main(nshots,expname,runnums,scratchdir)
-  File "/sdf/home/r/rogersdd/src/tmo-prefex/src/fex2h5.py", line 99, in main
-    for i,run in enumerate(ds.runs()):
-  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 89, in runs
-    while self._start_run():
-  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 79, in _start_run
-    if self._setup_beginruns():  # try to get next run from current files
-  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/serial_ds.py", line 74, in _setup_beginruns
-    dgrams = self.smdr_man.get_next_dgrams()
-  File "/sdf/group/lcls/ds/ana/sw/conda2/rel/lcls2_102424/psana/psana/psexp/smdreader_manager.py", line 147, in get_next_dgrams
-    self.smdr.find_view_offsets(batch_size=1, ignore_transition=False)
-KeyboardInterrupt
-    '''
-
+    for det in enabled_detectors:
+        if det not in detector_configs:
+            raise KeyError(f"Unknown detector type: {det}")
 
     ###################################
     #### Setting up the datasource ####
@@ -248,16 +232,16 @@ KeyboardInterrupt
             s >>= live_events()
             s >>= map(process_all)
             #   - chop the stream into lists of length n.
-            s >>= chop(512)
+            s >>= chop(1024)
             #   - save each grouping as a "Batch".
             s >>= xmap(batch_data, saves)
             #   - Further combine these into larger and larger
             #     chunk sizes for saving.
             s >>= variable_chunks(mk_sizes()) >> map(Batch.concat)
 
-            outname = '%s/hits.%s.run_%03i.%s%s.h5'%(
-                        scratchdir, expname, run.runnum,
-                        stepname, rank_suf)
+            outname = outdir/'%s.run_%03i.%s%s.h5'%(
+                                        expname, run.runnum,
+                                        stepname, rank_suf)
             # * The entire stream "runs" when connected to a sink:
             if dial is None:
                 s >>= write_out(outname, stepname, stepinfo)

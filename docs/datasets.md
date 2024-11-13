@@ -1,8 +1,24 @@
 Datasets
 ========
 
-fex2h5 creates HDF5-formatted datasets by looping through
-runs, steps, and events read by psana.
+psana2h5 creates HDF5-formatted datasets by looping through
+runs, steps, and events read by psana in parallel.
+Parallel event processing is typically very fast, but can scatter
+the events from each run/step into multiple files.
+
+This is actually a good thing when correlating events --
+since data from a given event is contained in only one file.
+Because of this, we can parallelize data analysis over events.
+Each worker sees all data pertaining to a single event.
+
+This document describes the data layout used by psana2h5
+to make this possible.  It is not necessary to understand
+all this detail in order to use psana2h5.
+Instead, call `push_h5` with the `--dial` option,
+and it will send you h5 files from the run you have
+requested for analysis.
+
+
 The originating data path is typically
 
     /sdf/data/lcls/ds/tmo/$expname/xtc/$expname-rNNNN-s001-c000.xtc2
@@ -10,17 +26,15 @@ The originating data path is typically
 and processed output files are generally stored on the
 scratch filesystem at
 
-    /sdf/data/lcls/ds/tmo/$expname/scratch/$USER/h5files/hits.$expname.run_NNN.step_MM[-rank].h5
+    /sdf/data/lcls/ds/tmo/$expname/scratch/$USER/psana2h5/<config-hash>/$expname.run_NNN.step_MM[-rank].JJJ.h5
 
+The `<config-hash>` value is an 8-character value determined from
+a hash of the detector config file.
 The `step_MM` suffix names the step as defined within the experiment
 (e.g. a sweep over incoming beam frequencies). The optional `-rank` suffix gives the MPI rank writing that particular file.
-
-Parallel event processing is typically very fast, but can scatter
-the events from each run/step into multiple files.  This can be
-a good thing when correlating events, however, since data from
-a given event is contained in only one file.  Because of this,
-we can parallelize data analysis over events -- with each worker
-seeing all data pertaining to a single event.
+The last number, `JJJ`, contains a subset of events processed
+by that rank.  The rank and `J` indices could technically be
+combined, since each rank and `J` contains unique events.
 
 ## File Layout
 

@@ -2,6 +2,8 @@
 
 from typing import Annotated, Any, Union, List
 from pathlib import Path
+import json
+from hashlib import blake2s
 
 import h5py
 import numpy as np
@@ -12,6 +14,14 @@ from .Hsd import HsdConfig
 from .Gmd import GmdConfig
 from .Spect import SpectConfig
 from .Ebeam import EbeamConfig
+
+from pydantic import BaseModel, ConfigDict, ValidationError
+
+def model_hash(model, digest_size=32):
+    # Serialize a pydantic model to json, then compute its hash
+    h = blake2s(digest_size=digest_size)
+    h.update(model.model_dump_json().encode('utf-8'))
+    return h.hexdigest()
 
 def get_name(v: Any) -> str:
     if isinstance(v, dict):
@@ -51,6 +61,15 @@ class Config(BaseModel):
     # t0s
     # logicthresh
     # offsets
+
+    def hash(self, digest_size=32):
+        # use the sorted (k,v) pairs of this config
+        # to create an all-config hash
+        u = [(k,model_hash(v)) for k,v in self.to_dict().items()]
+        u.sort()
+        h = blake2s(digest_size=digest_size)
+        h.update(json.dumps(u).encode('utf-8'))
+        return h.hexdigest()
 
     def to_dict(cfg):
         return {(d.name,getattr(d,'id',0)): d for d in cfg.detectors}

@@ -61,7 +61,7 @@ def run_ebeams(events, ebeams, params) -> Iterator[Optional[Any]]:
             idx = (name, 0)
             out[idx] = EbeamData(params[idx],
                                  eventnum,
-                                 detector.raw.ebeamL3Energy(evt)(evt))
+                                 detector.raw.ebeamL3Energy(evt))
             completeEvent = out[idx].ok
             if not completeEvent:
                 break
