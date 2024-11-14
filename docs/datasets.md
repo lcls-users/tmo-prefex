@@ -1,7 +1,7 @@
 Datasets
 ========
 
-psana2h5 creates HDF5-formatted datasets by looping through
+xtc2h5 creates HDF5-formatted datasets by looping through
 runs, steps, and events read by psana in parallel.
 Parallel event processing is typically very fast, but can scatter
 the events from each run/step into multiple files.
@@ -9,15 +9,15 @@ the events from each run/step into multiple files.
 This is actually a good thing when correlating events --
 since data from a given event is contained in only one file.
 Because of this, we can parallelize data analysis over events.
-Each worker sees all data pertaining to a single event.
+Each worker sees all data pertaining to a batch of events,
+but gets to work batch-at-a-time.
 
-This document describes the data layout used by psana2h5
-to make this possible.  It is not necessary to understand
-all this detail in order to use psana2h5.
-Instead, call `push_h5` with the `--dial` option,
-and it will send you h5 files from the run you have
-requested for analysis.
-
+This document describes the data layout used by xtc2h5
+to make this possible.  In the future,
+[lclstream](https://github.com/lcls-users/lclstream)
+will include a utility, `push_h5`, to send these files
+to a client program for analysis.  For now, just copy them
+over via scp.
 
 The originating data path is typically
 
@@ -26,7 +26,7 @@ The originating data path is typically
 and processed output files are generally stored on the
 scratch filesystem at
 
-    /sdf/{scratch,data}/lcls/ds/tmo/$expname/scratch/$USER/psana2h5/<config-hash>/$expname.run_NNN.step_MM[-rank].JJJ.h5
+    /sdf/scratch/lcls/ds/tmo/$expname/scratch/xtc2h5/run_NNN/<config-hash>/step_MM[-rank].JJJ.h5
 
 The `<config-hash>` value is an 8-character value determined from
 a hash of the detector config file.

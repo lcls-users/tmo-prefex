@@ -1,4 +1,6 @@
 from typing import List,Dict,Optional,Tuple,Union,Any
+from typing_extensions import Annotated
+
 from collections.abc import Iterator
 from pathlib import Path
 import sys
@@ -9,6 +11,7 @@ import io
 import typer
 import h5py
 import psana
+
 import numpy as np
 from stream import (
     stream, source, sink,
@@ -42,7 +45,8 @@ def run_events(run, t0):
 
 @stream
 def accum_out(inp: Iterator[Batch], outname: str,
-              stepname: str, stepinfo: Dict[str,Any]) -> Iterator[int]:
+              fprefix: str, stepinfo: Dict[str,Any]
+             ) -> Iterator[int]:
     """Accumulate all events into one giant file.
        Write accumulated result with each iterate.
     """
@@ -53,12 +57,11 @@ def accum_out(inp: Iterator[Batch], outname: str,
         else:
             batch0.extend(batch)
         # Extend instead of writing separate files.
-        print('writing batch %i to %s'%(i,outname))
-        with h5py.File(outname,'w') as f:
-            g = f.create_group(stepname)
+        print('appending batch %i to %s'%(i,outname))
+        with h5py.File(outz,'w') as h:
             for k, v in stepinfo.items():
-                g.attrs.create(k, data=v)
-            batch0.write_h5(g)
+                h.attrs.create(k, data=v)
+            batch0.write_h5(h)
 
         try:
             nev = len(batch[next(batch.keys())].events)
@@ -68,19 +71,19 @@ def accum_out(inp: Iterator[Batch], outname: str,
 
 @stream
 def write_out(inp: Iterator[Batch], outname: str,
-              stepname: str, stepinfo: Dict[str,Any]) -> Iterator[int]:
+              fprefix: str, stepinfo: Dict[str,Any]
+             ) -> Iterator[int]:
     """Write each batch of events to its own h5 file.
     TODO: accumulate events until batch.size() passes
     a threshold.
     """
     for i, batch in enumerate(inp):
-        outz = f'{outname[:-3]}.{i:03d}.h5'
+        outz = f'{fprefix}.{i:03d}.h5'
         print('writing batch %i to %s'%(i,outz))
-        with h5py.File(outz,'w') as f:
-            g = f.create_group(stepname)
+        with h5py.File(outz,'w') as h:
             for k, v in stepinfo.items():
-                g.attrs.create(k, data=v)
-            batch.write_h5(g)
+                h.attrs.create(k, data=v)
+            batch.write_h5(h)
 
         try:
             nev = len(batch[next(batch.keys())].events)
@@ -89,14 +92,12 @@ def write_out(inp: Iterator[Batch], outname: str,
         yield nev
 
 def serialize_h5(batch: Batch,
-                 stepname: str,
                  stepinfo: Dict[str,Any]) -> bytes:
     with io.BytesIO() as f:
         with h5py.File(f, 'w') as h:
-            g = f.create_group(stepname)
             for k, v in stepinfo.items():
-                g.attrs.create(k, data=v)
-            batch.write_h5(g)
+                h.attrs.create(k, data=v)
+            batch.write_h5(h)
         return f.getvalue()
 
 def process_all(tps):
@@ -138,12 +139,33 @@ def mk_sizes(upto=1024):
     return sizes
 
 @app.command()
-def main(expname: str,
-         detectors: str,
-         run: List[int],
-         config: Optional[Path] = None,
-         dial: Optional[str] = None,
-         outdir: Optional[Path] = None):
+def main(expname: Annotated[
+                    str,
+                    typer.Argument(help="Experiment name"),
+         ],
+         run: Annotated[
+                    int,
+                    typer.Argument(help="Run number"),
+         ],
+         detectors: Annotated[
+                    str,
+                    typer.Argument(help="Comma-separated list of detectors (e.g. gmd,hsd,spect)"),
+         ],
+         config: Annotated[
+                    Optional[Path],
+                    typer.Option(help="Detector configuration file"),
+         ] = None,
+         outdir: Annotated[
+                    Optional[Path],
+                    typer.Option(
+                        rich_help_panel="Output prefix for hdf5 files",
+                        help="Defaults to /sdf/scratch/lcls/ds/{abbr}/{expname}/scratch/xtc2h5/run_{run:03d}/{cfg_hash}")
+         ] = None,
+         dial: Annotated[
+                    Optional[str],
+                    typer.Option(help="Detector configuration file"),
+         ] = None,
+        ):
 
     nshots = 0 # don't truncate
 
@@ -172,9 +194,9 @@ def main(expname: str,
 
     # Set config-specific output directory.
     if outdir is None:
-        user = os.environ.get('USER')
-        outdir = Path('/sdf/data/lcls/ds/tmo/%s/scratch/%s/psana2h5'%(expname,user))
-    outdir = outdir / cfg.hash(8)
+        abbr = expname[:3]
+        cfg_hash = cfg.hash(8)
+        outdir = Path(f'/sdf/scratch/lcls/ds/{abbr}/{expname}/scratch/xtc2h5/run_{run:03d}/{cfg_hash}')
     outdir.mkdir(exist_ok=True, parents=True)
 
     enabled_detectors = detectors.split(',')
@@ -186,6 +208,7 @@ def main(expname: str,
     ###################################
     #### Setting up the datasource ####
     ###################################
+    runnums = [run]
     ds = psana.DataSource(exp=expname,run=runnums)
     for i, runnum in enumerate(runnums):
         run = next(ds.runs()) # don't call next unless you know it's there...
@@ -207,16 +230,15 @@ def main(expname: str,
         t0 = run.timestamp
         for sid, step in enumerate(run.steps()):
             stepname = f"step_{sid+1:02d}"
-            stepinfo = {'run': runnum}
+            stepinfo = {'run': runnum, 'step_value': sid+1}
             for it in run.scaninfo.items():
                 name = it[0][0]
                 v = run.Detector(name)(step)
+                stepinfo[name] = v
                 if name == 'step_value':
                     # If present, it should be defined for all steps.
                     v = int(v)
                     stepname = f"step_{v:02d}"
-                else:
-                    stepinfo[name] = v
 
             # * Assemble the stream to execute
             #   - Start from a stream of (eventnum, event).
@@ -240,19 +262,18 @@ def main(expname: str,
             #     chunk sizes for saving.
             s >>= variable_chunks(mk_sizes()) >> map(Batch.concat)
 
-            outname = outdir/'%s.run_%03i.%s%s.h5'%(
-                                        expname, run.runnum,
-                                        stepname, rank_suf)
+            # Output names will be 'step_MM[-rank].JJJ.h5'
+            #                      = 'stepname+rank_suf.JJJ.h5'
             # * The entire stream "runs" when connected to a sink:
             if dial is None:
-                s >>= write_out(outname, stepname, stepinfo)
+                s >>= write_out(outdir, stepname+rank_suf, stepinfo)
             else:
-                send_pipe = xmap(serialize_h5, stepname, stepinfo) \
+                send_pipe = xmap(serialize_h5, stepname+rank_suf, stepinfo) \
                             >> pusher(dial, 1)
                 # do both hdf5 file writing
                 # and send_pipe.  Use cut[0] to pass only
                 # the result of write_out (event counts).
-                s >>= split(write_out(outname, stepname, stepinfo),
+                s >>= split(write_out(outdir, stepname+rank_suf, stepinfo),
                             send_pipe) \
                       >> cut[0]
             for stat in s >> clock():

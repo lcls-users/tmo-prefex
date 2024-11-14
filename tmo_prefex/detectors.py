@@ -4,6 +4,8 @@
 # and provides a "setup" and "run" method.
 # Note these names should 
 
+from typing import List,Dict,Tuple,Union
+
 from .Hsd import HsdConfig, WaveData, FexData, run_hsds, setup_hsds, save_hsd
 from .Ebeam import EbeamConfig, EbeamData, setup_ebeams, run_ebeams, save_ebeam
 from .Gmd import GmdConfig, GmdData, setup_gmds, run_gmds, save_gmd

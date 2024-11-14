@@ -25,15 +25,13 @@ ids = [  0,  22,  45, 112,
 
 def load_h5_file(fname) -> Batch:
     with h5py.File(fname) as h:
-        step = list(h.keys())[0]
-        return Batch.from_h5(h[step])
+        return Batch.from_h5(h)
 
 def load_h5_buf(buf: bytes) -> Batch:
     try:
         with io.BytesIO(buf) as f:
             with h5py.File(f, 'r') as h:
-                step = list(h.keys())[0]
-                return Batch.from_h5(h[step])
+                return Batch.from_h5(h)
     except (IOError, OSError):
         print(f"Error reading h5 from buffer with length {len(buf)}", flush=True)
         #with open("dat.h5", "wb") as f:
