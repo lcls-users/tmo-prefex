@@ -17,6 +17,7 @@ from Ebeam import *
 from Gmd import *
 from Spect import *
 from Atm import *
+from Scan import *
 from Config import Config
 from utils import *
 import yaml
@@ -47,7 +48,7 @@ def main(nshots:int,runnums:List[int]):
     runpiranha=True
     runatm=True
     runtiming=True
-    runscan=False
+    runscan=True
 
     runvls=False
     runebeam=False
@@ -67,6 +68,7 @@ def main(nshots:int,runnums:List[int]):
     spect = {}
     atm = {}
     scan = {}
+    motors = {}
 
 
     ds = psana.DataSource(exp=expname,run=runnums)
@@ -89,7 +91,10 @@ def main(nshots:int,runnums:List[int]):
         piranhas.update({rkey:{}})
         spect.update({rkey:{}})
         atm.update({rkey:{}})
+
         scan.update({rkey:{}})
+        motors.update({rkey:{}})
+        
 
         
 
@@ -152,8 +157,8 @@ def main(nshots:int,runnums:List[int]):
                 runpiranha = False
 
         for scanvar in scanvars[rkey]:
-            if runscan and scanvar in r.scaninfo.keys():
-                scanvars[rkey].update({scanvar:run.Detector(scanvar)})
+            if runscan and scanvar in run.scaninfo.keys():
+                motors[rkey].update({scanvar:run.Detector(scanvar)})
                 scan[rkey].update({scanvar:Scan(scanvar)})
                 scan[rkey][scanvar].set_runkey(rkey)
                 if re.search('lxt',scanvar):
@@ -168,19 +173,12 @@ def main(nshots:int,runnums:List[int]):
         gmdEvents = []
         spectEvents = []
         atmEvents = []
+        scanEvents = []
+
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
         evrcodes:List(bool) = [False]*288
 
 
-        '''
-        # from Mona for timestamps
-        timestamps = np.array([4194783241933859761,4194783249723600225,4194783254218190609,4194783258712780993], dtype=np.uint64)
-        ds = DataSource(exp='tmoc00118', run=222, dir='/sdf/data/lcls/ds/prj/public01/xtc',timestamps=timestamps)
-        myrun = next(ds.runs())
-        opal = myrun.Detector('tmo_atmopal')
-        print(nevt, evt.timestamp, img.shape)
-        ts:np.uint64 = run.timestamp
-        '''
 
         for eventnum,evt in enumerate(run.events()):
             completeEvent:List[bool] = [True]
@@ -257,9 +255,9 @@ def main(nshots:int,runnums:List[int]):
                     xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))
 
             ## process scan
-            if runscan and all(completeEvents):
-                for scanvar in scanvars[rkey].keys():
-                    scan[rkey][scanvar].process(scanvars[rkey][scanvar](evt))
+            if runscan and all(completeEvent):
+                for scanvar in motors[rkey].keys():
+                    scan[rkey][scanvar].process(motors[rkey][scanvar](evt))
 
             ## process hsds
             if runhsd and all(completeEvent):
@@ -299,6 +297,8 @@ def main(nshots:int,runnums:List[int]):
                 if runpiranha:
                     spectEvents += [eventnum]
                     atmEvents += [eventnum]
+                if runscan:
+                    scanEvents += [eventnum]
 
             if init:
                 init = False
@@ -314,7 +314,6 @@ def main(nshots:int,runnums:List[int]):
                         atm[rkey][pirname].set_initState(False)
                 for scanvar in scan[rkey].keys():
                     scan[rkey][scanvar].set_initState(False)
-
 
 
             if runhsd:
@@ -334,19 +333,6 @@ def main(nshots:int,runnums:List[int]):
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
 
-            '''
-            if eventnum>1 and eventnum%1000==0:
-                filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
-                with h5py.File(filename_save,'w') as f:
-                    print('writing to %s'%filename_save)
-                    if runhsd:
-                        Port.update_h5(f,port,hsdEvents)
-                    if rungmd:
-                        Gmd.update_h5(f,xray,gmdEvents)
-                    if runpiranha:
-                        Spect.update_h5(f,spect,spectEvents)
-                        '''
-            
             if eventnum >= CHUNKSIZE and eventnum % CHUNKSIZE==0:
                 filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
                 with h5py.File(filename_save,'w') as f:
