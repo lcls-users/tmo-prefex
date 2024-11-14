@@ -138,8 +138,9 @@ def mk_sizes(upto=1024):
     return sizes
 
 @app.command()
-def main(expname: str, detectors: str,
-         runnums: List[int],
+def main(expname: str,
+         detectors: str,
+         run: List[int],
          config: Optional[Path] = None,
          dial: Optional[str] = None,
          outdir: Optional[Path] = None):

@@ -26,7 +26,7 @@ The originating data path is typically
 and processed output files are generally stored on the
 scratch filesystem at
 
-    /sdf/data/lcls/ds/tmo/$expname/scratch/$USER/psana2h5/<config-hash>/$expname.run_NNN.step_MM[-rank].JJJ.h5
+    /sdf/{scratch,data}/lcls/ds/tmo/$expname/scratch/$USER/psana2h5/<config-hash>/$expname.run_NNN.step_MM[-rank].JJJ.h5
 
 The `<config-hash>` value is an 8-character value determined from
 a hash of the detector config file.
