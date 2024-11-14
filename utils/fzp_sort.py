@@ -25,7 +25,7 @@ def main():
     t0=11000
     scale = 1
 
-    fig,axs=plt.subplots(1,4,figsize=(12,12))
+    fig,axs=plt.subplots(1,4,figsize=(24,12))
 
     for k,p in enumerate(corrports):
         for nameind,name in enumerate(filenames):
@@ -57,7 +57,7 @@ def main():
                         ind2 = max(0,min(hist[k].shape[1]-1, int(cents[i])>>2))
                         hist[k][ind1,ind2] += 1
 
-            axs[k].imshow(hist[k],clim=(0,1))
+            axs[k].imshow(hist[k],clim=(0,10))
             axs[k].set_xlabel('fzp')
             axs[k].set_ylabel('hsd')
             axs[k].set_title('%s'%(p))
