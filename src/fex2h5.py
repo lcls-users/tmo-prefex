@@ -21,6 +21,8 @@ from Config import Config
 from utils import *
 import yaml
 
+CHUNKSIZE:int = 5000
+
 def main(nshots:int,runnums:List[int]):
   
     outnames = {}
@@ -45,6 +47,7 @@ def main(nshots:int,runnums:List[int]):
     runpiranha=True
     runatm=True
     runtiming=True
+    runscan=False
 
     runvls=False
     runebeam=False
@@ -63,6 +66,7 @@ def main(nshots:int,runnums:List[int]):
     piranhas = {}
     spect = {}
     atm = {}
+    scan = {}
 
 
     ds = psana.DataSource(exp=expname,run=runnums)
@@ -70,6 +74,7 @@ def main(nshots:int,runnums:List[int]):
     hsdnames = {}
     gmdnames = {}
     pirnames = {}
+    scanvars = {}
 
     for r in runnums:
         chunk = 0
@@ -84,6 +89,7 @@ def main(nshots:int,runnums:List[int]):
         piranhas.update({rkey:{}})
         spect.update({rkey:{}})
         atm.update({rkey:{}})
+        scan.update({rkey:{}})
 
         
 
@@ -93,6 +99,7 @@ def main(nshots:int,runnums:List[int]):
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
         pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
+        scanvars.update({rkey: [s[0] for s in run.scaninfo.keys() if not re.search('step',s[0])]})
 
         for hsdname in hsdnames[rkey]:
             port[rkey].update({hsdname:{}})
@@ -143,6 +150,18 @@ def main(nshots:int,runnums:List[int]):
                     atm[rkey][pirname].setProcessAlgo('piranha_edge')
             else:
                 runpiranha = False
+
+        for scanvar in scanvars[rkey]:
+            if runscan and scanvar in r.scaninfo.keys():
+                scanvars[rkey].update({scanvar:run.Detector(scanvar)})
+                scan[rkey].update({scanvar:Scan(scanvar)})
+                scan[rkey][scanvar].set_runkey(rkey)
+                if re.search('lxt',scanvar):
+                    scan[rkey][scanvar].set_unit('fs',1e15)
+                if re.search('hf',scanvar):
+                    scan[rkey][scanvar].set_unit('eV',1)
+
+
 
         init = True 
         hsdEvents = []
@@ -237,6 +256,11 @@ def main(nshots:int,runnums:List[int]):
                 for gmdname in gmdnames[rkey]:
                     xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))
 
+            ## process scan
+            if runscan and all(completeEvents):
+                for scanvar in scanvars[rkey].keys():
+                    scan[rkey][scanvar].process(scanvars[rkey][scanvar](evt))
+
             ## process hsds
             if runhsd and all(completeEvent):
                 for hsdname in hsds[rkey].keys():
@@ -288,6 +312,9 @@ def main(nshots:int,runnums:List[int]):
                         spect[rkey][pirname].set_initState(False)
                     if re.search('atm',pirname):
                         atm[rkey][pirname].set_initState(False)
+                for scanvar in scan[rkey].keys():
+                    scan[rkey][scanvar].set_initState(False)
+
 
 
             if runhsd:
@@ -320,7 +347,7 @@ def main(nshots:int,runnums:List[int]):
                         Spect.update_h5(f,spect,spectEvents)
                         '''
             
-            if eventnum >= 10000 and eventnum % 10000==0:
+            if eventnum >= CHUNKSIZE and eventnum % CHUNKSIZE==0:
                 filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
                 with h5py.File(filename_save,'w') as f:
                     print('writing to %s'%filename_save)
@@ -348,6 +375,12 @@ def main(nshots:int,runnums:List[int]):
                         for name in atm[rkey].keys():
                             if re.search('atm',pirname):
                                 atm[rkey][pirname].reset()
+                    if runscan:
+                        Scan.update_h5(f,scan,scanEvents)
+                        scanEvents.clear()
+                        for name in scan[rkey].keys():
+                            scan[rkey][name].reset()
+
                 chunk += 1
 
         # end event loop
