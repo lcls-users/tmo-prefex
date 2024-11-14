@@ -36,3 +36,8 @@ provides this as a command-line tool.
 It can be launched in serial, but should normally
 be launched in parallel with mpirun.
 See `slurmscript.bash` for a complete example.
+
+It can be launched with, e.g.
+
+    ssh psana sbatch $PWD/slurmscript.bash tmox1016823 45
+

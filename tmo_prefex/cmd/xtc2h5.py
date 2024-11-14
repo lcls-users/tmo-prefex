@@ -182,11 +182,11 @@ def main(expname: Annotated[
     #######################
     if config is None:
         if rank == 0:
-            print("Warning: empty config.yaml -- all detector settings at default.")
+            print("Warning: no config.yaml provided -- all detector settings at default.")
         cfg = Config() # empty
     elif config.exists():
         if rank == 0:
-            print("Reading config.yaml")
+            print(f"Reading config from {config}")
         cfg = Config.load(config)
     else:
         raise RuntimeError(f"Unable to read {config}")
@@ -224,6 +224,7 @@ def main(expname: Annotated[
 
         # Save these params.
         if i == 0 and rank == 0:
+            cfgname = outdir / "config.yaml"
             print(f"Saving config to {cfgname}")
             Config.from_dict(params).save(cfgname, overwrite=True)
 
@@ -279,4 +280,6 @@ def main(expname: Annotated[
             for stat in s >> clock():
                 print(stat, flush=True)
 
-    print("Hello, I'm done now.  Have a most excellent day!")
+    if rank == 0: # Write a sentinel file indicating data is complete.
+        (outdir/"done").write_text("processed all events\n")
+        print("Hello, I'm done now.  Have a most excellent day!")

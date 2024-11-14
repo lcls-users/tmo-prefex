@@ -20,12 +20,9 @@ fi
 expname=$1
 runnum=$2
 detectors=gmd,spect,hsd
+config=/sdf/home/r/rogersdd/src/tmo-prefex/config.yaml
 
-PARALLEL=/sdf/home/r/rogersdd/venvs/psana2/bin/parallel
-BASE=/sdf/home/r/rogersdd/src/tmo-prefex
-
-cd /sdf/home/r/rogersdd/src/tmo-prefex
-source env.sh
+source /sdf/home/r/rogersdd/src/tmo-prefex/env.sh
 
 st=`date +%s`
 
@@ -35,7 +32,7 @@ printf -v runstr "r%04d" $runnum
 # seems to include s000 .. s019
 #if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
 # If do right, no can defense.
-time mpirun xtc2h5 $@
+time mpirun xtc2h5 --config $config $expname $runnum $detectors
 #else
 #    echo "XTC2 file not found for run $expname:$runstr"
 #fi
