@@ -38,9 +38,10 @@ combined, since each rank and `J` contains unique events.
 
 ## File Layout
 
-Within each file, there is a top-level group naming the step.
-Inside that group, there are sub-groups for each detector.
-Within each detector, there is a sub-group for a channel.
+Each file contains a batch of event data.
+It is laid out the same way as `tmo_prefex.combine.Batch`.
+Each (detector, channel id) pair gets its own group/group
+hierarchy.
 Most detectors (e.g. xgmd) have just one output channel,
 but the `mrco_hsd` has 16 different channels:
 
@@ -49,63 +50,63 @@ $ h5dump -n 1 $fname
 HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
 FILE_CONTENTS {
  group      /
- group      /step_10
- attribute  /step_10/hf_w
- attribute  /step_10/run
- attribute  /step_10/step_docstring
- group      /step_10/gmd
- group      /step_10/gmd/0
- attribute  /step_10/gmd/0/config
- dataset    /step_10/gmd/0/energies
- dataset    /step_10/gmd/0/events
- group      /step_10/mrco_hsd
- group      /step_10/mrco_hsd/0
- attribute  /step_10/mrco_hsd/0/config
- dataset    /step_10/mrco_hsd/0/addresses
- dataset    /step_10/mrco_hsd/0/events
- dataset    /step_10/mrco_hsd/0/logic_lens
- dataset    /step_10/mrco_hsd/0/nedges
- dataset    /step_10/mrco_hsd/0/raw_lens
- dataset    /step_10/mrco_hsd/0/rl_addresses
- dataset    /step_10/mrco_hsd/0/rl_data
- dataset    /step_10/mrco_hsd/0/rl_events
- dataset    /step_10/mrco_hsd/0/slopes
- dataset    /step_10/mrco_hsd/0/tofs
- group      /step_10/mrco_hsd/112
- attribute  /step_10/mrco_hsd/112/config
- dataset    /step_10/mrco_hsd/112/addresses
- dataset    /step_10/mrco_hsd/112/events
- dataset    /step_10/mrco_hsd/112/logic_lens
- dataset    /step_10/mrco_hsd/112/nedges
- dataset    /step_10/mrco_hsd/112/raw_lens
- dataset    /step_10/mrco_hsd/112/rl_addresses
- dataset    /step_10/mrco_hsd/112/rl_data
- dataset    /step_10/mrco_hsd/112/rl_events
- dataset    /step_10/mrco_hsd/112/slopes
- dataset    /step_10/mrco_hsd/112/tofs
+ attribute  /hf_w
+ attribute  /run
+ attribute  /step_value
+ attribute  /step_docstring
+ group      /gmd
+ group      /gmd/0
+ attribute  /gmd/0/config
+ dataset    /gmd/0/energies
+ dataset    /gmd/0/events
+ group      /mrco_hsd
+ group      /mrco_hsd/0
+ attribute  /mrco_hsd/0/config
+ dataset    /mrco_hsd/0/addresses
+ dataset    /mrco_hsd/0/events
+ dataset    /mrco_hsd/0/logic_lens
+ dataset    /mrco_hsd/0/nedges
+ dataset    /mrco_hsd/0/raw_lens
+ dataset    /mrco_hsd/0/rl_addresses
+ dataset    /mrco_hsd/0/rl_data
+ dataset    /mrco_hsd/0/rl_events
+ dataset    /mrco_hsd/0/slopes
+ dataset    /mrco_hsd/0/tofs
+ group      /mrco_hsd/112
+ attribute  /mrco_hsd/112/config
+ dataset    /mrco_hsd/112/addresses
+ dataset    /mrco_hsd/112/events
+ dataset    /mrco_hsd/112/logic_lens
+ dataset    /mrco_hsd/112/nedges
+ dataset    /mrco_hsd/112/raw_lens
+ dataset    /mrco_hsd/112/rl_addresses
+ dataset    /mrco_hsd/112/rl_data
+ dataset    /mrco_hsd/112/rl_events
+ dataset    /mrco_hsd/112/slopes
+ dataset    /mrco_hsd/112/tofs
  ...
- group      /step_10/tmo_fzppiranha
- group      /step_10/tmo_fzppiranha/0
- attribute  /step_10/tmo_fzppiranha/0/config
- dataset    /step_10/tmo_fzppiranha/0/centroids
- dataset    /step_10/tmo_fzppiranha/0/events
- dataset    /step_10/tmo_fzppiranha/0/offsets
- dataset    /step_10/tmo_fzppiranha/0/vsize
- dataset    /step_10/tmo_fzppiranha/0/vsum
- dataset    /step_10/tmo_fzppiranha/0/wv
- group      /step_10/xgmd
- group      /step_10/xgmd/0
- attribute  /step_10/xgmd/0/config
- dataset    /step_10/xgmd/0/energies
- dataset    /step_10/xgmd/0/events
+ group      /tmo_fzppiranha
+ group      /tmo_fzppiranha/0
+ attribute  /tmo_fzppiranha/0/config
+ dataset    /tmo_fzppiranha/0/centroids
+ dataset    /tmo_fzppiranha/0/events
+ dataset    /tmo_fzppiranha/0/offsets
+ dataset    /tmo_fzppiranha/0/vsize
+ dataset    /tmo_fzppiranha/0/vsum
+ dataset    /tmo_fzppiranha/0/wv
+ group      /xgmd
+ group      /xgmd/0
+ attribute  /xgmd/0/config
+ dataset    /xgmd/0/energies
+ dataset    /xgmd/0/events
  }
 }
 ```
 
 Attributes included on the step group provide the output
-of the step's "detectors":
+of the step's "scan detectors":
 ```
-$ h5dump -a '/step_10/hf_w' $fname
+$ h5dump -a '/hf_w' $fname
 HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
 ATTRIBUTE "hf_w" {
    DATATYPE  H5T_IEEE_F64LE
@@ -115,7 +116,7 @@ ATTRIBUTE "hf_w" {
    }
 }
 }
-$ h5dump -a '/step_10/step_docstring' $fname
+$ h5dump -a '/step_docstring' $fname
 HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
 ATTRIBUTE "step_docstring" {
    DATATYPE  H5T_STRING {
@@ -136,11 +137,11 @@ ATTRIBUTE "step_docstring" {
 
 Within a detector's output, there are typically several variables
 that output for each event.  These are stored compressed, listing
-only events that have data to report.  The simplest example are the
+only events that have data to report.  The simplest example is the
 energies for the xgmd detector:
 
 ```
-$ h5ls -d $fname/step_10/xgmd/0/energies
+$ h5ls -d $fname/xgmd/0/energies
 energies                 Dataset {999}
     Data:
         (0) 90, 98, 76, 73, 108, 91, 83, 100, 97, 84, 96, 92, 108,
@@ -148,7 +149,7 @@ energies                 Dataset {999}
         (26) 104, 111, 41, 62, 83, 86, 57, 86, 81, 72, 68, 95, 92,
         (39) 97, 90, 97, 70, 72, 96, 87, 70, 84, 79, 78, 69, 72, 62,
         ...
-$ h5ls -d $fname/step_10/xgmd/0/events
+$ h5ls -d $fname/xgmd/0/events
 events                   Dataset {999}
     Data:
         (0) 51319795, 51319916, 51320036, 51320157, 51320277,
@@ -167,9 +168,9 @@ to its time delta from the start of the run.
 
 The HSD detectors store only electron detections.
 Hence, while there were 1000 events with xgmd data in the
-file, only 57 of those detected any electrons.
+file, only 82 of those detected any electrons.
 ```
-$ h5ls $fname/step_10/mrco_hsd/180
+$ h5ls $fname/mrco_hsd/180
 addresses                Dataset {82}
 events                   Dataset {82}
 logic_lens               Dataset {1}
@@ -180,8 +181,8 @@ rl_data                  Dataset {76}
 rl_events                Dataset {1}
 slopes                   Dataset {194}
 tofs                     Dataset {194}
-$ h5ls -d $fname/step_10/mrco_hsd/180/events
-$ h5ls -d $fname/step_10/mrco_hsd/180/events
+$ h5ls -d $fname/mrco_hsd/180/events
+$ h5ls -d $fname/mrco_hsd/180/events
 events                   Dataset {82}
     Data:
         (0) 51320398, 51321966, 51324378, 51325946, 51327756,
@@ -197,7 +198,7 @@ There were 194 counts totalled from these 82 events.
 The `nedges` and `addresses` fields are the number
 of counts in each event, and their running sum.
 ```
-$ h5ls -d $fname/step_10/mrco_hsd/180/nedges
+$ h5ls -d $fname/mrco_hsd/180/nedges
 nedges                   Dataset {82}
     Data:
         (0) 3, 4, 4, 1, 1, 1, 2, 4, 3, 2, 5, 1, 2, 2, 1, 3, 2, 4, 1,
@@ -205,7 +206,7 @@ nedges                   Dataset {82}
         (38) 3, 1, 1, 2, 1, 2, 4, 1, 3, 3, 4, 3, 2, 2, 2, 2, 1, 2, 4,
         (57) 1, 2, 4, 2, 5, 1, 3, 3, 2, 3, 1, 1, 3, 2, 1, 2, 3, 4, 1,
         (76) 3, 1, 1, 2, 2, 2
-$ h5ls -d $fname/step_10/mrco_hsd/180/addresses
+$ h5ls -d $fname/mrco_hsd/180/addresses
 addresses                Dataset {82}
     Data:
         (0) 0, 3, 7, 11, 12, 13, 14, 16, 20, 23, 25, 30, 31, 33, 35,
@@ -221,9 +222,9 @@ The `addresses` and `nedges` fields can be used to select
 just the counts belonging to a single event.  Chosing here
 the 15th event (51337043),
 ```
-$ h5dump -d /step_10/mrco_hsd/180/tofs -s 36 -c 3 $fname
+$ h5dump -d /mrco_hsd/180/tofs -s 36 -c 3 $fname
 HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
-DATASET "/step_10/mrco_hsd/180/tofs" {
+DATASET "/mrco_hsd/180/tofs" {
    DATATYPE  H5T_STD_U64LE
    DATASPACE  SIMPLE { ( 194 ) / ( 194 ) }
    SUBSET {
@@ -253,7 +254,7 @@ the recorded spectrum sizes may differ or be centered
 around a peak or something.
 
 ```
-$ h5ls $fname/step_10/tmo_fzppiranha/0/
+$ h5ls $fname/tmo_fzppiranha/0/
 centroids                Dataset {999}
 events                   Dataset {999}
 offsets                  Dataset {999}
@@ -261,16 +262,16 @@ vsize                    Dataset {999}
 vsum                     Dataset {999}
 wv                       Dataset {2045952}
 
-$ h5ls -d $fname/step_10/tmo_fzppiranha/0/centroids
+$ h5ls -d $fname/tmo_fzppiranha/0/centroids
 centroids                Dataset {999}
     Data:
         (0) 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         (19) 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ...
 
-$ h5dump -d /step_10/tmo_fzppiranha/0/wv -s 1024000 -c 2048 $fname
+$ h5dump -d /tmo_fzppiranha/0/wv -s 1024000 -c 2048 $fname
 HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
-DATASET "/step_10/tmo_fzppiranha/0/wv" {
+DATASET "/tmo_fzppiranha/0/wv" {
    DATATYPE  H5T_STD_I16LE
    DATASPACE  SIMPLE { ( 2045952 ) / ( 2045952 ) }
    SUBSET {
@@ -403,8 +404,9 @@ DATASET "/step_10/tmo_fzppiranha/0/wv" {
 }
 ```
 These spectra were baseline-subtracted, accounting for the negative
-numbers.  Note there is some activity around `1025203-1024000=1203`.
-We could modify fex2h5 to discard data from Spect, Gmd, etc.
+numbers.  Note there is a peak around `1025203-1024000=1203`,
+so we should improve the peak-finding algo. here.
+We could modify xtc2h5 to discard data from Spect, Gmd, etc.
 when none of the HSD-s register a count, but that isn't implemented
 at present.
 

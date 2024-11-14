@@ -44,7 +44,7 @@ def run_events(run, t0):
         yield (t+500)//1000, evt
 
 @stream
-def accum_out(inp: Iterator[Batch], outname: str,
+def accum_out(inp: Iterator[Batch], outdir: Path,
               fprefix: str, stepinfo: Dict[str,Any]
              ) -> Iterator[int]:
     """Accumulate all events into one giant file.
@@ -57,7 +57,8 @@ def accum_out(inp: Iterator[Batch], outname: str,
         else:
             batch0.extend(batch)
         # Extend instead of writing separate files.
-        print('appending batch %i to %s'%(i,outname))
+        outz = outdir/f'{fprefix}.h5'
+        print('appending batch %i to %s'%(i,outz))
         with h5py.File(outz,'w') as h:
             for k, v in stepinfo.items():
                 h.attrs.create(k, data=v)
@@ -70,7 +71,7 @@ def accum_out(inp: Iterator[Batch], outname: str,
         yield nev
 
 @stream
-def write_out(inp: Iterator[Batch], outname: str,
+def write_out(inp: Iterator[Batch], outdir: Path,
               fprefix: str, stepinfo: Dict[str,Any]
              ) -> Iterator[int]:
     """Write each batch of events to its own h5 file.
@@ -78,7 +79,7 @@ def write_out(inp: Iterator[Batch], outname: str,
     a threshold.
     """
     for i, batch in enumerate(inp):
-        outz = f'{fprefix}.{i:03d}.h5'
+        outz = outdir/f'{fprefix}.{i:03d}.h5'
         print('writing batch %i to %s'%(i,outz))
         with h5py.File(outz,'w') as h:
             for k, v in stepinfo.items():
