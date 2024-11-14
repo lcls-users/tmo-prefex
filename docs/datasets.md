@@ -46,14 +46,15 @@ Most detectors (e.g. xgmd) have just one output channel,
 but the `mrco_hsd` has 16 different channels:
 
 ```
-$ h5dump -n 1 $fname
-HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
+$ h5dump -n 1 /sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/xtc2h5/run_045/01df450c4584ca36/step_04-118.000.h5
+HDF5 "/sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/xtc2h5/run_045/01df450c4584ca36/step_04-118.000.h5" {
 FILE_CONTENTS {
  group      /
+ attribute  /events
  attribute  /hf_w
  attribute  /run
- attribute  /step_value
  attribute  /step_docstring
+ attribute  /step_value
  group      /gmd
  group      /gmd/0
  attribute  /gmd/0/config
@@ -103,35 +104,97 @@ FILE_CONTENTS {
 }
 ```
 
-Attributes included on the step group provide the output
-of the step's "scan detectors":
+Attributes included at the root level provide the run number,
+`step_value`, and number of events counted in this batch,
+as well as the output of the step's "scan detectors":
 ```
-$ h5dump -a '/hf_w' $fname
-HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
-ATTRIBUTE "hf_w" {
-   DATATYPE  H5T_IEEE_F64LE
-   DATASPACE  SCALAR
-   DATA {
-   (0): 410
+$ h5dump -A $fname
+HDF5 "/sdf/scratch/lcls/ds/tmo/tmox1016823/scratch/xtc2h5/run_045/01df450c4584ca36/step_04-118.000.h5" {
+GROUP "/" {
+   ATTRIBUTE "events" {
+      DATATYPE  H5T_STD_I64LE
+      DATASPACE  SCALAR
+      DATA {
+      (0): 1000
+      }
    }
-}
-}
-$ h5dump -a '/step_docstring' $fname
-HDF5 "/sdf/data/lcls/ds/tmo/tmox1016823/scratch/rogersdd/h5files/hits.tmox1016823.run_045.step_10-085.h5" {
-ATTRIBUTE "step_docstring" {
-   DATATYPE  H5T_STRING {
-      STRSIZE H5T_VARIABLE;
-      STRPAD H5T_STR_NULLTERM;
-      CSET H5T_CSET_UTF8;
-      CTYPE H5T_C_S1;
+   ATTRIBUTE "hf_w" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+      DATA {
+      (0): 397.5
+      }
    }
-   DATASPACE  SCALAR
-   DATA {
-   (0): "{"detname": "scan", "scantype": "scan", "step": 10}"
+   ATTRIBUTE "run" {
+      DATATYPE  H5T_STD_I64LE
+      DATASPACE  SCALAR
+      DATA {
+      (0): 45
+      }
    }
-}
-}
+   ATTRIBUTE "step_docstring" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_UTF8;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+      DATA {
+      (0): "{"detname": "scan", "scantype": "scan", "step": 4}"
+      }
+   }
+   ATTRIBUTE "step_value" {
+      DATATYPE  H5T_STD_I64LE
+      DATASPACE  SCALAR
+      DATA {
+      (0): 4
+      }
+   }
+   GROUP "gmd" {
+      GROUP "0" {
+         ATTRIBUTE "config" {
+            DATATYPE  H5T_STRING {
+               STRSIZE H5T_VARIABLE;
+               STRPAD H5T_STR_NULLTERM;
+               CSET H5T_CSET_UTF8;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "{"name":"gmd","unit":"uJ","scale":1000}"
+            }
+         }
+         DATASET "energies" {
+            DATATYPE  H5T_STD_I16LE
+            DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+         }
+         DATASET "events" {
+            DATATYPE  H5T_STD_U32LE
+            DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+         }
+      }
+   }
+   GROUP "mrco_hsd" {
+      GROUP "0" {
+         ATTRIBUTE "config" {
+            DATATYPE  H5T_STRING {
+               STRSIZE H5T_VARIABLE;
+               STRPAD H5T_STR_NULLTERM;
+               CSET H5T_CSET_UTF8;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "{"id":0,"chankey":0,"is_fex":true,"name":"mrco_hsd","inflate":2,"expand":4,"logic_thresh":-1024,"roll_on":6,"roll_off":6,"nadcs":4,"t0":0,"baselim":64,"rate":6000000000.0}"
+            }
+         }
+...
 ```
+
+Note that the per-detector configs are also included as
+attributes (parsable as json-formatted string values).
+
 
 ### XGMD
 
@@ -163,6 +226,7 @@ events                   Dataset {999}
 These are output for every event, and contain the events list
 only as a tracking aid.  Note that the event numbering corresponds
 to its time delta from the start of the run.
+These are computed as `(event.timestamp_diff(t0)+500)//1000`.
 
 ## MRCO\_HSD
 
