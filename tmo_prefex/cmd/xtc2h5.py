@@ -46,9 +46,11 @@ def run_events(run, t0):
 @stream
 def accum_out(inp: Iterator[Batch], outdir: Path,
               fprefix: str, stepinfo: Dict[str,Any]
-             ) -> Iterator[int]:
+             ) -> Iterator[Batch]:
     """Accumulate all events into one giant file.
        Write accumulated result with each iterate.
+
+       Yields only the input batch for each iteration.
     """
     batch0 = None
     for i, batch in enumerate(inp):
@@ -64,16 +66,12 @@ def accum_out(inp: Iterator[Batch], outdir: Path,
                 h.attrs.create(k, data=v)
             batch0.write_h5(h)
 
-        try:
-            nev = len(batch[next(batch.keys())].events)
-        except Exception:
-            nev = 0
-        yield nev
+        yield batch
 
 @stream
 def write_out(inp: Iterator[Batch], outdir: Path,
               fprefix: str, stepinfo: Dict[str,Any]
-             ) -> Iterator[int]:
+             ) -> Iterator[Batch]:
     """Write each batch of events to its own h5 file.
     TODO: accumulate events until batch.size() passes
     a threshold.
@@ -86,11 +84,8 @@ def write_out(inp: Iterator[Batch], outdir: Path,
                 h.attrs.create(k, data=v)
             batch.write_h5(h)
 
-        try:
-            nev = len(batch[next(batch.keys())].events)
-        except Exception:
-            nev = 0
-        yield nev
+        yield batch
+        #yield batch.attrs['events']
 
 def serialize_h5(batch: Batch,
                  stepinfo: Dict[str,Any]) -> bytes:
@@ -267,18 +262,15 @@ def main(expname: Annotated[
             # Output names will be 'step_MM[-rank].JJJ.h5'
             #                      = 'stepname+rank_suf.JJJ.h5'
             # * The entire stream "runs" when connected to a sink:
-            if dial is None:
-                s >>= write_out(outdir, stepname+rank_suf, stepinfo)
-            else:
+            s >>= write_out(outdir, stepname+rank_suf, stepinfo)
+            if dial is not None:
                 send_pipe = xmap(serialize_h5, stepname+rank_suf, stepinfo) \
                             >> pusher(dial, 1)
-                # do both hdf5 file writing
-                # and send_pipe.  Use cut[0] to pass only
-                # the result of write_out (event counts).
-                s >>= split(write_out(outdir, stepname+rank_suf, stepinfo),
-                            send_pipe) \
-                      >> cut[0]
-            for stat in s >> clock():
+                s >>= split(map(lambda b: b), send_pipe) >> cut[0]
+            for stat in s >> map(lambda b: b.attrs['events']) \
+                          >> clock():
+                # Create statistics on events processed and time
+                # per iteration and print all those out.
                 print(stat, flush=True)
 
     if rank == 0: # Write a sentinel file indicating data is complete.
