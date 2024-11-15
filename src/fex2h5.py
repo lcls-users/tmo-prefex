@@ -157,13 +157,15 @@ def main(nshots:int,runnums:List[int]):
                 runpiranha = False
 
         for scanvar in scanvars[rkey]:
-            if runscan and scanvar in run.scaninfo.keys():
+            if runscan and (scanvar in [s[0] for s in run.scaninfo.keys()]):
                 motors[rkey].update({scanvar:run.Detector(scanvar)})
                 scan[rkey].update({scanvar:Scan(scanvar)})
                 scan[rkey][scanvar].set_runkey(rkey)
                 if re.search('lxt',scanvar):
+                    print('running lxt too')
                     scan[rkey][scanvar].set_unit('fs',1e15)
                 if re.search('hf',scanvar):
+                    print('running hf too')
                     scan[rkey][scanvar].set_unit('eV',1)
 
 
@@ -187,6 +189,17 @@ def main(nshots:int,runnums:List[int]):
                 break
 
             #test readbacks for each of detectors for given event
+
+            ## if failed test of piranha, can't do spectrum correlation
+            if runscan and all(completeEvent):
+                for name in scanvars[rkey]:
+                    if motors[rkey][name] is not None:
+                        if re.search('lxt',name):
+                            completeEvent += [scan[rkey][name].test(motors[rkey][name](evt)) ]
+                        if re.search('hf',name):
+                            completeEvent += [scan[rkey][name].test(motors[rkey][name](evt)) ]
+                        else:
+                            completeEvent += [False]
 
             ## if failed test of piranha, can't do spectrum correlation
             if runpiranha and all(completeEvent):
@@ -256,7 +269,8 @@ def main(nshots:int,runnums:List[int]):
 
             ## process scan
             if runscan and all(completeEvent):
-                for scanvar in motors[rkey].keys():
+                for scanvar in scanvars[rkey]:
+                    print(scanvar)
                     scan[rkey][scanvar].process(motors[rkey][scanvar](evt))
 
             ## process hsds
@@ -333,7 +347,7 @@ def main(nshots:int,runnums:List[int]):
                             print('working event %i,\tnedges = %s'%(eventnum,[port[rkey][hsdname][k].getnedges() for k in chankeys[rkey][hsdname]] ))
 
 
-            if eventnum >= CHUNKSIZE and eventnum % CHUNKSIZE==0:
+            if eventnum % CHUNKSIZE==0:
                 filename_save = outnames[rkey][:-3]+".%04i.h5"%(chunk)
                 with h5py.File(filename_save,'w') as f:
                     print('writing to %s'%filename_save)

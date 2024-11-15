@@ -27,6 +27,7 @@ class Scan:
 
     @classmethod
     def update_h5(cls,f,scan,scanEvents):
+        print('updating scan for h5')
         grpscan = None
         grprun = None
         for rkey in scan.keys():
@@ -38,7 +39,7 @@ class Scan:
                 if name not in f[rstr].keys():
                     f[rstr].create_group(name)
                 grpscan = f[rstr][name]
-                valdata = grpgmd.create_dataset('values',data=thisscan.val,dtype=np.int16)
+                valdata = grpscan.create_dataset('values',data=thisscan.val,dtype=np.int16)
                 valdata.attrs.create('unit',data=thisscan.unit)
                 valdata.attrs.create('scale',data=thisscan.scale)
                 grpscan.create_dataset('events',data=scanEvents)
