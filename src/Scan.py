@@ -19,7 +19,7 @@ class Scan:
             grpscan = f[self.name]
         else:
             grpscan = f.create_group(self.name)
-        valdata = grpscan.create_dataset('values',data=scan.val,dtype=np.int16)
+        valdata = grpscan.create_dataset('values',data=scan.val,dtype=np.int32)
         valdata.attrs.create('unit',data=thisscan.unit)
         valdata.attrs.create('scale',data=thisscan.scale)
         grpscan.create_dataset('events',data=scanEvents)
@@ -39,22 +39,23 @@ class Scan:
                 if name not in f[rstr].keys():
                     f[rstr].create_group(name)
                 grpscan = f[rstr][name]
-                valdata = grpscan.create_dataset('values',data=thisscan.val,dtype=np.int16)
+                valdata = grpscan.create_dataset('values',data=thisscan.val,dtype=np.int32)
                 valdata.attrs.create('unit',data=thisscan.unit)
                 valdata.attrs.create('scale',data=thisscan.scale)
-                grpscan.create_dataset('events',data=scanEvents)
+                grpscan.create_dataset('events',data=scanEvents,dtype=np.uint64)
         return
 
     def test(self,v):
         if type(v)==type(None):
+            print('Damn you scan variable!')
             return False
         return True
 
     def process(self,v):
         if self.initState:
-            self.en = [np.int16(v*self.scale)]
+            self.val = [np.int16(v*self.scale)]
         else:
-            self.en += [np.int16(v*self.scale)]
+            self.val += [np.int16(v*self.scale)]
         return True
 
     def get_runstr(self):

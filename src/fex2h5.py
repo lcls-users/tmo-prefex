@@ -184,6 +184,7 @@ def main(nshots:int,runnums:List[int]):
 
         for eventnum,evt in enumerate(run.events()):
             completeEvent:List[bool] = [True]
+
             if eventnum > nshots:
                 print("done")
                 break
@@ -198,8 +199,8 @@ def main(nshots:int,runnums:List[int]):
                             completeEvent += [scan[rkey][name].test(motors[rkey][name](evt)) ]
                         if re.search('hf',name):
                             completeEvent += [scan[rkey][name].test(motors[rkey][name](evt)) ]
-                        else:
-                            completeEvent += [False]
+                    else:
+                        completeEvent += [False]
 
             ## if failed test of piranha, can't do spectrum correlation
             if runpiranha and all(completeEvent):
@@ -256,22 +257,21 @@ def main(nshots:int,runnums:List[int]):
                 for pirname in pirnames[rkey]:
                     if False and re.search('atm',pirname):
                         if evrcodes[goose] or not evrcodes[anylaser]:
-                            atm[rkey][pirname].updateref(piranhas[rkey][pirname].raw.raw(evt))
+                            completeEvent += [atm[rkey][pirname].updateref(piranhas[rkey][pirname].raw.raw(evt))]
                         else:
-                            atm[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
+                            completeEvent += [atm[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))]
                     if re.search('fzp',pirname):
-                        spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))
+                        completeEvent += [spect[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))]
 
             ## process gmds
             if rungmd and all(completeEvent):
                 for gmdname in gmdnames[rkey]:
-                    xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))
+                    completeEvent += [xray[rkey][gmdname].process(gmds[rkey][gmdname].raw.milliJoulesPerPulse(evt))]
 
             ## process scan
             if runscan and all(completeEvent):
                 for scanvar in scanvars[rkey]:
-                    print(scanvar)
-                    scan[rkey][scanvar].process(motors[rkey][scanvar](evt))
+                    completeEvent += [scan[rkey][scanvar].process(motors[rkey][scanvar](evt))]
 
             ## process hsds
             if runhsd and all(completeEvent):
@@ -318,16 +318,16 @@ def main(nshots:int,runnums:List[int]):
                 init = False
                 for hsdname in port[rkey].keys():
                     for key in port[rkey][hsdname].keys():
-                        port[rkey][hsdname][key].set_initState(False)
+                        port[rkey][hsdname][key].set_initState(init)
                 for gmdname in xray[rkey].keys():
-                    xray[rkey][gmdname].set_initState(False)
+                    xray[rkey][gmdname].set_initState(init)
                 for pirname in spect[rkey].keys():
                     if re.search('fzp',pirname):
-                        spect[rkey][pirname].set_initState(False)
+                        spect[rkey][pirname].set_initState(init)
                     if re.search('atm',pirname):
-                        atm[rkey][pirname].set_initState(False)
+                        atm[rkey][pirname].set_initState(init)
                 for scanvar in scan[rkey].keys():
-                    scan[rkey][scanvar].set_initState(False)
+                    scan[rkey][scanvar].set_initState(init)
 
 
             if runhsd:
@@ -383,6 +383,7 @@ def main(nshots:int,runnums:List[int]):
 
                 chunk += 1
 
+            completeEvent.clear()
         # end event loop
 
  
