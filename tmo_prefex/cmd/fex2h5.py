@@ -248,7 +248,7 @@ KeyboardInterrupt
             s >>= live_events()
             s >>= map(process_all)
             #   - chop the stream into lists of length n.
-            s >>= chop(512)
+            s >>= chop(1<<10)
             #   - save each grouping as a "Batch".
             s >>= xmap(batch_data, saves)
             #   - Further combine these into larger and larger

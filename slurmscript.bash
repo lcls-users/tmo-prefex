@@ -17,7 +17,8 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-nshots=0 # otherwise MPI mode hangs
+#nshots=0 # otherwise MPI mode hangs
+nshots=10000 
 expname=$1
 runnum=$2
 
@@ -38,7 +39,7 @@ datapath=/sdf/data/lcls/ds/tmo/$expname/xtc
 
 
 cd /sdf/home/r/rogersdd/src/tmo-prefex
-source env.sh
+source ./env.sh
 
 st=`date +%s`
 
@@ -47,7 +48,7 @@ printf -v runstr "r%04d" $runnum
 # seems to include s000 .. s019
 #if [ -f $datapath/$expname-$runstr-s000-c000.xtc2 ]; then
     # If do right, no can defense.
-    time mpirun fex2h5 $nshots $@
+    time mpirun xtc2h5 $nshots $@
 #else
 #    echo "XTC2 file not found for run $expname:$runstr"
 #fi

@@ -19,6 +19,7 @@ source ./venv/bin/activate
 ssh psana
 # setup env (as above)
 fex2h5 <nruns> <runname> <list of run numbers>
+##fex2h5 <nruns> <runname> <list of run numbers>
 ```
 
 For additional clues, see `process.sh`, which does some

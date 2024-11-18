@@ -36,9 +36,9 @@ def variable_chunks(iterator, sizes: Iterator[int]):
     
     If you want an infinite stream, use something like:
 
-    >>> sizes = stream.Source([10, 20, 100]) << stream.seq(1000,0)
+    >>> sizes = stream.Source([1<<4, 1<<6, 1<<8, 1<<10]) << stream.seq(1<<13,0)
 
-    which will stick at 1000 forever.
+    which will stick at 8192 forever... about one second at 8 kHz
     """
     n = 0
     for n in sizes:
