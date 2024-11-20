@@ -9,8 +9,9 @@ import math
 import statistics as stats
 
 def main():
-    path = sys.argv[1]
-    filenames = np.sort([nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))])
+    #path = sys.argv[1]
+    #filenames = np.sort([nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))])
+    filenames = np.sort( [ nm for nm in sys.argv[1:] if os.path.isfile(nm)] )
     corrports = [['port_090','port_270'],['port_000','port_180']]
     #filenames = [nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))]
 
@@ -29,7 +30,8 @@ def main():
 
     for k in range(len(corrports)):
         for nameind,name in enumerate(filenames):
-            with h5py.File(os.path.join(path,name),'r') as f:
+            #with h5py.File(os.path.join(path,name),'r') as f:
+            with h5py.File(name,'r') as f:
                 runstr = [k for k in f.keys()][0]
                 detstr = 'mrco_hsd'
                 hsd = f[runstr][detstr]
@@ -71,9 +73,9 @@ def main():
         print(hscale//fscale)
 
         if k == 0:
-            im = axs[k].imshow(2*hist[k]-(falsecoince[k]*fscale//hscale),clim=(-1,10))
+            im = axs[k].imshow(hist[k],clim=(0,5))#-(falsecoince[k]*fscale//hscale),clim=(-1,10))
         else:
-            im = axs[k].imshow(2*hist[k]-(falsecoince[k]*fscale//hscale),clim=(-10,100))
+            im = axs[k].imshow(hist[k],clim=(0,50))#-(falsecoince[k]*fscale//hscale),clim=(-10,100))
         axs[k].set_title('%s-%s'%(corrports[k][0],corrports[k][1]))
         fig.colorbar(im, orientation='vertical')
     plt.show()

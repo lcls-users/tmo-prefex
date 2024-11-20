@@ -18,11 +18,14 @@ from Gmd import *
 from Spect import *
 from Atm import *
 from Scan import *
+from Evr import *
 from Config import Config
 from utils import *
 import yaml
 
 CHUNKSIZE:int = 5000
+
+
 
 def main(nshots:int,runnums:List[int]):
   
@@ -39,16 +42,13 @@ def main(nshots:int,runnums:List[int]):
     inflate:int = 2
     expand:int = 2
 
-    goose:int = 281 # on but mistimed
-    laser:int = 280 # on and timed
-    anylaser:int = 282 # on, either mistimed or timed
-
     runhsd=True
     rungmd=True
     runpiranha=True
     runatm=True
     runtiming=True
     runscan=True
+    runevrs=True
 
     runvls=False
     runebeam=False
@@ -69,14 +69,15 @@ def main(nshots:int,runnums:List[int]):
     atm = {}
     scan = {}
     motors = {}
+    evrs = {}
 
 
-    ds = psana.DataSource(exp=expname,run=runnums)
+    ds = psana.MPIDataSource(exp=expname,run=runnums)
     detslist = {}
     hsdnames = {}
     gmdnames = {}
     pirnames = {}
-    scanvars = {}
+    scanlist = {}
 
     for r in runnums:
         chunk = 0
@@ -94,17 +95,22 @@ def main(nshots:int,runnums:List[int]):
 
         scan.update({rkey:{}})
         motors.update({rkey:{}})
+
+        evrs.update({rkey:run.Detector('timing')})
         
 
         
 
         chankeys.update({rkey:{}})
-        detslist.update({rkey:[s for s in run.detnames]})
+        detslist.update({rkey:[s[0] for s in run.detinfo.keys() if re.search('raw',s[1])]})
+        fexslist.update({rkey:[s[0] for s in run.detinfo.keys() if re.search('fex',s[1])]})
+        triglist.update({rkey:[s[0] for s in run.detinfo.keys() if re.search('trig',s[1])]})
+        scanlist.update({rkey: [s[0] for s in run.scaninfo.keys() if not re.search('step',s[0])]})
         outnames.update({rkey:'%s/hits.%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
         pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
-        scanvars.update({rkey: [s[0] for s in run.scaninfo.keys() if not re.search('step',s[0])]})
+
 
         for hsdname in hsdnames[rkey]:
             port[rkey].update({hsdname:{}})
@@ -156,7 +162,7 @@ def main(nshots:int,runnums:List[int]):
             else:
                 runpiranha = False
 
-        for scanvar in scanvars[rkey]:
+        for scanvar in scanlist[rkey]:
             if runscan and (scanvar in [s[0] for s in run.scaninfo.keys()]):
                 motors[rkey].update({scanvar:run.Detector(scanvar)})
                 scan[rkey].update({scanvar:Scan(scanvar)})
@@ -178,9 +184,6 @@ def main(nshots:int,runnums:List[int]):
         scanEvents = []
 
         eventnum:int = 0 # later move this to outside the runs loop and let eventnum increase over all of the serial runs.
-        evrcodes:List(bool) = [False]*288
-
-
 
         for eventnum,evt in enumerate(run.events()):
             completeEvent:List[bool] = [True]
@@ -193,7 +196,7 @@ def main(nshots:int,runnums:List[int]):
 
             ## if failed test of piranha, can't do spectrum correlation
             if runscan and all(completeEvent):
-                for name in scanvars[rkey]:
+                for name in scanlist[rkey]:
                     if motors[rkey][name] is not None:
                         if re.search('lxt',name):
                             completeEvent += [scan[rkey][name].test(motors[rkey][name](evt)) ]
@@ -248,15 +251,20 @@ def main(nshots:int,runnums:List[int]):
 
 
             #############################################
-            ## finish testing all detectors to measure ##
+            # finished testing all detectors to measure #
             ############ before processing ##############
             #############################################
+
+            ## process evrs
+            if runevrs and all(completeEvent):
+                completeEvent += [evrs[rkey].process()]
+
 
             ## process piranhas
             if runpiranha and all(completeEvent):
                 for pirname in pirnames[rkey]:
                     if False and re.search('atm',pirname):
-                        if evrcodes[goose] or not evrcodes[anylaser]:
+                        if evrcodes[GOOSE] or not evrcodes[ANYLASER]:
                             completeEvent += [atm[rkey][pirname].updateref(piranhas[rkey][pirname].raw.raw(evt))]
                         else:
                             completeEvent += [atm[rkey][pirname].process(piranhas[rkey][pirname].raw.raw(evt))]
@@ -270,7 +278,7 @@ def main(nshots:int,runnums:List[int]):
 
             ## process scan
             if runscan and all(completeEvent):
-                for scanvar in scanvars[rkey]:
+                for scanvar in scanlist[rkey]:
                     completeEvent += [scan[rkey][scanvar].process(motors[rkey][scanvar](evt))]
 
             ## process hsds
