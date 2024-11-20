@@ -1,9 +1,9 @@
 import numpy as np
 
 class Evr:
-    self.LASER:int = 280 # on and timed
-    self.GOOSE:int = 281 # on but mistimed
-    self.ANYLASER:int = 282 # on, either mistimed or timed
+    LASER:int = 280 # on and timed
+    GOOSE:int = 281 # on but mistimed
+    ANYLASER:int = 282 # on, either mistimed or timed
 
     def __init__(self):
         self.codes = []
@@ -22,7 +22,7 @@ class Evr:
         else:
             grpevr = f.create_group('evr')
         data = grpevr.create_dataset('evrdata',data=evr.codes,dtype=np.uint16)
-        data.attrs.create('codenames',data=['laser','goose','anylaser']
+        data.attrs.create('codenames',data=['laser','goose','anylaser'],dtype=str)
         grpevr.create_dataset('events',data=evrEvents)
         return
 
@@ -41,6 +41,7 @@ class Evr:
             evrdata = grpgmd.create_dataset('evrdata',data=evr.codes,dtype=bool)
             evrdata.attrs.create('stride',3,dtype=np.uint8)
             evrdata.attrs.create('codenames',data=['laser','goose','anylaser'])
+            evrdata.attrs.create('codevals',data=[cls.LASER,cls.GOOSE,cls.ANYLASER])
             grpevr.create_dataset('events',data=evrEvents)
         return
 

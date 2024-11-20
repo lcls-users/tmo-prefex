@@ -70,14 +70,17 @@ def main(nshots:int,runnums:List[int]):
     scan = {}
     motors = {}
     evrs = {}
+    evrdet = {}
 
 
-    ds = psana.MPIDataSource(exp=expname,run=runnums)
+    ds = psana.DataSource(exp=expname,run=runnums)
     detslist = {}
+    scanlist = {}
+    fexslist = {}
+    triglist = {}
     hsdnames = {}
     gmdnames = {}
     pirnames = {}
-    scanlist = {}
 
     for r in runnums:
         chunk = 0
@@ -96,7 +99,8 @@ def main(nshots:int,runnums:List[int]):
         scan.update({rkey:{}})
         motors.update({rkey:{}})
 
-        evrs.update({rkey:run.Detector('timing')})
+        evrdet.update({rkey:run.Detector('timing')})
+        evrs.update({rkey:Evr()})
         
 
         
@@ -257,7 +261,7 @@ def main(nshots:int,runnums:List[int]):
 
             ## process evrs
             if runevrs and all(completeEvent):
-                completeEvent += [evrs[rkey].process()]
+                completeEvent += [evrs[rkey].process(evrdet[rkey].raw.eventcodes(evt))]
 
 
             ## process piranhas
