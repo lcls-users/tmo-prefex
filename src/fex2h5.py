@@ -100,7 +100,8 @@ def main(nshots:int,runnums:List[int]):
         motors.update({rkey:{}})
 
         evrdet.update({rkey:run.Detector('timing')})
-        evrs.update({rkey:Evr()})
+        evrs.update({rkey:{'evr':Evr()}})
+        evrs[rkey]['evr'].set_runkey(rkey).set_name('evr')
         
 
         
@@ -224,9 +225,8 @@ def main(nshots:int,runnums:List[int]):
 
             if runevrs and all(completeEvent):
                 if evrs[rkey] is not None:
-                    completeEvent += [evrs[rkey].test(evrdet[rkey].raw.eventcodes(evt))]
+                    completeEvent += [evrs[rkey]['evr'].test(evrdet[rkey].raw.eventcodes(evt))]
                 else:
-                    print('Failed Evrs')
                     completeEvent += [False]
 
 
@@ -270,7 +270,7 @@ def main(nshots:int,runnums:List[int]):
 
             ## process evrs
             if runevrs and all(completeEvent):
-                completeEvent += [evrs[rkey].process(evrdet[rkey].raw.eventcodes(evt))]
+                completeEvent += [evrs[rkey]['evr'].process(evrdet[rkey].raw.eventcodes(evt))]
 
 
             ## process piranhas
@@ -351,7 +351,7 @@ def main(nshots:int,runnums:List[int]):
                         atm[rkey][pirname].set_initState(init)
                 for scanvar in scan[rkey].keys():
                     scan[rkey][scanvar].set_initState(init)
-                evrs[rkey].set_initState(init)
+                evrs[rkey]['evr'].set_initState(init)
 
             if runhsd:
                 if eventnum<1:
@@ -384,7 +384,7 @@ def main(nshots:int,runnums:List[int]):
                     if runevrs:
                         Evr.update_h5(f,evrs,evrEvents)
                         evrEvents.clear()
-                        evrs[rkey].reset()
+                        evrs[rkey]['evr'].reset()
 
                     if rungmd:
                         Gmd.update_h5(f,xray,gmdEvents)
