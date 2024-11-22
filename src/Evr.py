@@ -17,13 +17,17 @@ class Evr:
     @classmethod
     def slim_update_h5(cls,f,evr,evrEvents):
         grpevr = None
-        if 'evr' in f.keys():
-            grpevr = f['evr']
-        else:
-            grpevr = f.create_group('evr')
-        data = grpevr.create_dataset('evrdata',data=evr.codes,dtype=np.uint16)
-        data.attrs.create('codenames',data=['laser','goose','anylaser'],dtype=str)
-        grpevr.create_dataset('events',data=evrEvents)
+        grprun = None
+        for rkey in evr.keys():
+            rstr = evr[rkey].get_runstr()
+            for ename in evr[rkey].keys():
+                if ename not in f[rstr].keys():
+                    f[rstr].create_group('evr')
+            grpevr = f[rstr]['evr']
+            evrdata = grpevr.create_dataset('evrdata',data=evr[rkey].codes,dtype=np.uint16)
+            evrdata.attrs.create('codenames',data=['laser','goose','anylaser'],dtype=str)
+            evrdata.attrs.create('codeinds',data=[cls.LASER,cls.GOOSE,cls.ANYLASER])
+            grpevr.create_dataset('events',data=evrEvents)
         return
 
     @classmethod
@@ -31,17 +35,17 @@ class Evr:
         grpevr = None
         grprun = None
         for rkey in evr.keys():
-            thisevr = evr[rkey]
+            print('HERE in Evr.update_h5')
             rstr = evr[rkey].get_runstr()
             if rstr not in f.keys():
                 f.create_group(rstr)
             if 'evr' not in f[rstr].keys():
                 f[rstr].create_group('evr')
             grpevr = f[rstr]['evr']
-            evrdata = grpgmd.create_dataset('evrdata',data=evr.codes,dtype=bool)
+            evrdata = grpevr.create_dataset('evrdata',data=evr[rkey].codes,dtype=bool)
             evrdata.attrs.create('stride',3,dtype=np.uint8)
             evrdata.attrs.create('codenames',data=['laser','goose','anylaser'])
-            evrdata.attrs.create('codevals',data=[cls.LASER,cls.GOOSE,cls.ANYLASER])
+            evrdata.attrs.create('codeinds',data=[cls.LASER,cls.GOOSE,cls.ANYLASER])
             grpevr.create_dataset('events',data=evrEvents)
         return
 
@@ -54,9 +58,11 @@ class Evr:
 
     def process(self,e):
         if self.initState:
-            self.codes = [bool(v) for v in e[self.LASER:self.ANYLASER+1]]
+            #self.codes = [bool(v) for v in e[self.LASER:self.ANYLASER+1]]
+            self.codes = e[self.LASER:self.ANYLASER+1]
         else:
-            self.codes += [bool(v) for v in e[self.LASER:self.ANYLASER+1]]
+            #self.codes += [bool(v) for v in e[self.LASER:self.ANYLASER+1]]
+            self.codes += e[self.LASER:self.ANYLASER+1]
         return True
 
     def get_runstr(self):

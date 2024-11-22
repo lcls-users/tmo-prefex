@@ -183,6 +183,7 @@ def main(nshots:int,runnums:List[int]):
         init = True 
         hsdEvents = []
         gmdEvents = []
+        evrEvents = []
         spectEvents = []
         atmEvents = []
         scanEvents = []
@@ -220,6 +221,14 @@ def main(nshots:int,runnums:List[int]):
                                 completeEvent += [atm[rkey][pirname].test(piranhas[rkey][pirname].raw.raw(evt)) ]
                         else:
                             completeEvent += [False]
+
+            if runevrs and all(completeEvent):
+                if evrs[rkey] is not None:
+                    completeEvent += [evrs[rkey].test(evrdet[rkey].raw.eventcodes(evt))]
+                else:
+                    print('Failed Evrs')
+                    completeEvent += [False]
+
 
             ## if failed test of gmd, then can't normalize, so skip event.
             if rungmd and all(completeEvent):
@@ -325,6 +334,8 @@ def main(nshots:int,runnums:List[int]):
                     atmEvents += [eventnum]
                 if runscan:
                     scanEvents += [eventnum]
+                if runevrs:
+                    evrEvents += [eventnum]
 
             if init:
                 init = False
@@ -340,10 +351,10 @@ def main(nshots:int,runnums:List[int]):
                         atm[rkey][pirname].set_initState(init)
                 for scanvar in scan[rkey].keys():
                     scan[rkey][scanvar].set_initState(init)
-
+                evrs[rkey].set_initState(init)
 
             if runhsd:
-                if eventnum<2:
+                if eventnum<1:
                     for hsdname in hsds[rkey].keys():
                         print('ports = %s'%([k for k in chankeys[rkey][hsdname].keys()]))
                 if eventnum<100 and eventnum%10==0: 
@@ -369,6 +380,11 @@ def main(nshots:int,runnums:List[int]):
                         for name in port[rkey].keys():
                             for p in port[rkey][name].keys():
                                 port[rkey][hsdname][p].reset()
+
+                    if runevrs:
+                        Evr.update_h5(f,evrs,evrEvents)
+                        evrEvents.clear()
+                        evrs[rkey].reset()
 
                     if rungmd:
                         Gmd.update_h5(f,xray,gmdEvents)
