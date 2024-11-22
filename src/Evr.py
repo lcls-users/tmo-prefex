@@ -19,11 +19,11 @@ class Evr:
         grpevr = None
         grprun = None
         for rkey in evr.keys():
-            rstr = evr[rkey]['evr'].get_runstr()
             for ename in evr[rkey]['evr'].keys():
-                if ename not in f[rstr].keys():
-                    f[rstr].create_group('evr')
-            grpevr = f[rstr]['evr']
+                if ename not in f.keys():
+                    f.create_group('evr')
+            grpevr = f['evr']
+            grpevr.attrs.create('run',data=evr[rkey]['evr'].get_runstr())
             evrdata = grpevr.create_dataset('evrdata',data=evr[rkey]['evr'].codes,dtype=np.uint16)
             evrdata.attrs.create('codenames',data=['laser','goose','anylaser'],dtype=str)
             evrdata.attrs.create('codeinds',data=[cls.LASER,cls.GOOSE,cls.ANYLASER])

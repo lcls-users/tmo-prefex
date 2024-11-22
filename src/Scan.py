@@ -29,16 +29,13 @@ class Scan:
     def update_h5(cls,f,scan,scanEvents):
         print('updating scan for h5')
         grpscan = None
-        grprun = None
         for rkey in scan.keys():
             for name in scan[rkey].keys():
                 thisscan = scan[rkey][name]
-                rstr = scan[rkey][name].get_runstr()
-                if rstr not in f.keys():
-                    f.create_group(rstr)
-                if name not in f[rstr].keys():
-                    f[rstr].create_group(name)
-                grpscan = f[rstr][name]
+                if name not in f.keys():
+                    f.create_group(name)
+                grpscan = f[name]
+                grpscan.attrs.create('run',data=scan[rkey][name].get_runstr())
                 valdata = grpscan.create_dataset('values',data=thisscan.val,dtype=np.int32)
                 valdata.attrs.create('unit',data=thisscan.unit)
                 valdata.attrs.create('scale',data=thisscan.scale)

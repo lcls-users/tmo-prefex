@@ -111,7 +111,7 @@ def main(nshots:int,runnums:List[int]):
         fexslist.update({rkey:[s[0] for s in run.detinfo.keys() if re.search('fex',s[1])]})
         triglist.update({rkey:[s[0] for s in run.detinfo.keys() if re.search('trig',s[1])]})
         scanlist.update({rkey: [s[0] for s in run.scaninfo.keys() if not re.search('step',s[0])]})
-        outnames.update({rkey:'%s/hits.%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
+        outnames.update({rkey:'%s/%s.%s.h5'%(os.environ.get('scratchpath'),os.environ.get('expname'),os.environ.get('runstr'))})
         hsdnames.update({rkey: [s for s in detslist[rkey] if re.search('hsd$',s)] })
         gmdnames.update({rkey: [s for s in detslist[rkey] if re.search('gmd$',s)] })
         pirnames.update({rkey: [s for s in detslist[rkey] if re.search('piranha$',s)] })
@@ -128,7 +128,7 @@ def main(nshots:int,runnums:List[int]):
                     chankeys[rkey][hsdname].update({k:k}) # this we may want to replace with the PCIe address id or the HSD serial number.
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_name(hsdname)
-                    port[rkey][hsdname][k].set_logicthresh(-1*(1<<10))
+                    port[rkey][hsdname][k].set_logicthresh(-1*(1<<10)).set_processAlgo('fftfex2hits')
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)

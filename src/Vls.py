@@ -39,6 +39,9 @@ class Vls:
         self.vlsthresh = thresh
         self.winstart = 0
         self.winstop = 1<<11
+        self.runkey = 'r0000'
+        self.name = 'vls'
+
         return
 
     @classmethod
@@ -49,6 +52,7 @@ class Vls:
         else:
             grpvls = f.create_group('vls')
 
+        grpvls.attrs.create('run',data=spect.get_runstr())
         grpvls.create_dataset('centroids',data=spect.vc,dtype=np.float16)
         grpvls.create_dataset('sum',data=spect.vs,dtype=np.uint64)
         grpvls.attrs.create('size',data=spect.vsize,dtype=np.int32)
@@ -63,6 +67,7 @@ class Vls:
         else:
             grpvls = f.create_group('vls')
 
+        grpvls.attrs.create('run',data=spect.get_runstr())
         grpvls.create_dataset('data',data=spect.v,dtype=int)
         grpvls.create_dataset('centroids',data=spect.vc,dtype=np.float16)
         grpvls.create_dataset('sum',data=spect.vs,dtype=np.uint64)
@@ -120,3 +125,19 @@ class Vls:
         print(self.v[:10])
         return self
 
+    def get_runstr(self):
+        return 'run_%04i'%self.runkey
+
+    def get_runkey(self):
+        return self.runkey
+
+    def get_name(self):
+        return self.name
+
+    def set_runkey(self,r:int):
+        self.runkey = r
+        return self
+
+    def set_name(self,n:str):
+        self.name = n
+        return self

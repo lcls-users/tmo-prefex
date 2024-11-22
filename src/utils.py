@@ -5,8 +5,16 @@ import h5py
 import math
 import os
 import re
-from scipy.fftpack import dct,dst
+from scipy.fftpack import dct,dst,rfft,irfft,fft,ifft
 import matplotlib.pyplot as plt
+
+def intlog2(x:np.uint32):
+    r = np.uint8(0)
+    t = np.uint32(x)>>1
+    while t:
+        t >>= 1
+        r +=1
+    return r
 
 def show(x):
     offset = 5+np.abs(np.min(x))
@@ -110,7 +118,7 @@ def cfdLogic_mod(s,thresh,base,offset=2,expandBits=2):
 def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
     sz = s.shape[0]
     result = np.zeros(sz*inflate,dtype=np.int32)
-    rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*2*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
+    rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*2*np.pi/float(nrolloff<<2))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
     smirror = np.append(s,np.flip(s,axis=0)).astype(float)
     S = fft(smirror,axis=0)
     S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
@@ -123,22 +131,20 @@ def fftLogic(s,inflate=1,nrollon=64,nrolloff=128):
     dy = ifft(S,axis=0).real[:(inflate*sz)]
     return -y*dy
 
-def fftLogic_fex(s,baseline,inflate=1,nrollon=8,nrolloff=32):
+def fftLogic_fex(s,baseline,inflate=1,expand=1,nrollon=8,nrolloff=32):
     sz = s.shape[0]
     if (sz)<nrolloff:
         print('sz is wrong %i'%(len(s)))
         print('nrolloff = %i'%(nrolloff))
-    result = np.zeros(sz*inflate,dtype=np.int32)
     rollon_vec = 0.5*(1.-np.cos(np.arange(nrollon,dtype=float)*np.pi/float(nrollon))) 
-    rolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
-    #print('rolloff sz = %i'%(len(rolloff_vec)))
-    smirror = np.append(s-baseline,np.flip(s-baseline,axis=0)).astype(float)
-    smirror[:nrollon] *= rollon_vec
-    smirror[-nrollon:] *= np.flip(rollon_vec,axis=0)
-    smirror[sz-nrolloff:sz+nrolloff] *= rolloff_vec
-    
+    fftrolloff_vec = 0.5*(1.+np.cos(np.arange(nrolloff<<1,dtype=float)*np.pi/float(nrolloff))) # careful, operating on left and right of middle indices in one go...2pi now not pi.
+
+    sworks = s-baseline
+    sworks[:nrollon] *= rollon_vec                      ## rolling off the signal onset
+    sworks[-nrollon:] *= np.flip(rollon_vec,axis=0)     ## rolling off the signal onset
+    smirror = np.append(sworks,np.flip(sworks,axis=0)).astype(float)    # forcing real FFT by symmetric input function
     S = fft(smirror,axis=0)
-    S[sz-nrolloff:sz+nrolloff] *= rolloff_vec
+    S[sz-nrolloff:sz+nrolloff] *= fftrolloff_vec        ## rolling off the high frequencies (below:above) Nyquist
     if inflate>1:
         S = np.concatenate((S[:sz],np.zeros(2*sz*(inflate-1),dtype=complex),S[sz:]))
     Sy = np.copy(S)
@@ -146,9 +152,33 @@ def fftLogic_fex(s,baseline,inflate=1,nrollon=8,nrolloff=32):
     S[-sz:] *= np.flip(-1j*np.arange(sz,dtype=float)/(sz),axis=0)
     y = ifft(Sy,axis=0).real[:(inflate*sz)]
     dy = ifft(S,axis=0).real[:(inflate*sz)]
-    result = y
-    #print(np.min(res),np.max(res))
-    return result
+    result = np.zeros(sz*inflate,dtype=np.int32)
+    result = y*dy
+    print(np.min(res),np.max(res))
+    return scan_fft(result) 
+    #return result
+
+def scan_fft(res):
+    tofs = []
+    slopes = []
+    sz = res.shape[0]
+    i:int = int(1)
+    while i < sz-2:
+        while res[i] > thresh:
+            i += 1
+            if i==sz-2: return tofs,slopes,len(tofs),res
+        while res[i]<0:
+            i += 1
+            if i==sz-2: return tofs,slopes,len(tofs),res
+        stop = i
+        ''' dx / (Dy) = dx2/dy2 ; dy2*dx/Dy - dx2 ; x2-dx2 = stop - dy2*1/Dy'''
+        mod_stop = i
+        if stop > 0:
+            mod_stop = (res[stop]*((stop-1)<<expandBits)+abs(res[stop-1])*(stop<<expandBits))//(abs(res[stop-1])+res[stop])
+        i += 1
+        tofs += [np.uint32(mod_stop)] 
+        slopes += [res[stop]-res[stop-1]] 
+    return tofs,slopes,np.uint16(len(tofs)),res
 
 
 def fftLogic_f16(s,inflate=1,nrolloff=128):

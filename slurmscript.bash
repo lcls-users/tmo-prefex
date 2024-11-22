@@ -40,7 +40,7 @@ fi
 
 if [ -f ${datapath}/${expname}-${runstr}-s000-c000.xtc2 ]; then
 	source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
-	python3 $HOME/tmo-prefex/src/fex2h5.py $nshots $expname $runnum
+	python3 $HOME/tmo-prefex/src/xtc2h5.py $nshots $expname $runnum
 	echo "syncing $scratchpath to $finalpath \nand then removing $scratchpath"
 	rsync -pruv $scratchpath/* $finalpath/
 	rm -rf $scratchpath

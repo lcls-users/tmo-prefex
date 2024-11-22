@@ -16,12 +16,14 @@ class Gmd:
     @classmethod
     def slim_update_h5(cls,f,gmd,gmdEvents):
         grpgmd = None
-        if 'gmd' in f.keys():
-            grpgmd = f['gmd']
-        else:
-            grpgmd = f.create_group('gmd')
-        grpgmd.create_dataset('gmdenergy',data=gmd.en,dtype=np.uint16)
-        grpgmd.create_dataset('events',data=gmdEvents)
+        for rkey in gmd.keys():
+            if 'gmd' in f.keys():
+                grpgmd = f['gmd']
+            else:
+                grpgmd = f.create_group('gmd')
+            grpgms.attrs.create('run',data=gmd[rkey][gmdname].get_runstr(),dtype=str)
+            grpgmd.create_dataset('gmdenergy',data=gmd.en,dtype=np.uint16)
+            grpgmd.create_dataset('events',data=gmdEvents)
         return
 
     @classmethod
@@ -31,12 +33,10 @@ class Gmd:
         for rkey in gmd.keys():
             for gmdname in gmd[rkey].keys():
                 thisgmd = gmd[rkey][gmdname]
-                rstr = gmd[rkey][gmdname].get_runstr()
-                if rstr not in f.keys():
-                    f.create_group(rstr)
-                if gmdname not in f[rstr].keys():
-                    f[rstr].create_group(gmdname)
-                grpgmd = f[rstr][gmdname]
+                if gmdname not in f.keys():
+                    f.create_group(gmdname)
+                grpgmd = f[gmdname]
+                grpgmd.attrs.create('run',data=gmd[rkey][gmdname].get_runstr())
                 endata = grpgmd.create_dataset('energy',data=thisgmd.en,dtype=np.uint16)
                 endata.attrs.create('unit',data=thisgmd.unit)
                 endata.attrs.create('scale',data=thisgmd.scale)

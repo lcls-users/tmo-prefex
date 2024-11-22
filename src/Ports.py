@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.fftpack import dct,dst,rfft,irfft,fft,ifft
 from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean,cfdLogic,cfdLogic_mod,fftLogic_fex,fftLogic,fftLogic_f16
 import h5py
 import time
@@ -37,7 +36,7 @@ class Port:
         self.waves = {}
         self.logics = {}
         self.shot = int(0)
-        self.processAlgo = 'fex2hits' # add as method to set the Algo for either of 'fex2hits', 'fex2coeffs', or just 'wave'
+        self.processAlgo = 'fex2hits' # add as method to set the Algo for either of 'fex2hits', 'fex2coeffs', 'fftfex2hits', or just 'wave'
 
         self.e:List[np.uint32] = []
         self.de:List[np.int32] = []
@@ -78,17 +77,11 @@ class Port:
             for name in names:
                 #print(name)
                 testkey = [k for k in port[rkey][name].keys()][0]
-                rkeystr = port[rkey][name][testkey].get_runstr()
-                rgrp = None
                 nmgrp = None
-                if rkeystr in f.keys():
-                    rgrp = f[rkeystr]
+                if name in f.keys():
+                    nmgrp = f[name]
                 else:
-                    rgpr = f.create_group(rkeystr)
-                if name in f[rkeystr].keys():
-                    nmgrp = f[rkeystr][name]
-                else:
-                    nmgrp = f[rkeystr].create_group(name)
+                    nmgrp = f.create_group(name)
         
                 p = port[rkey][name]
                 for key in p.keys(): # remember key == port number
@@ -104,6 +97,7 @@ class Port:
                         rawgrp = g.create_group('raw')
                         wvgrp = g.create_group('waves')
                         lggrp = g.create_group('logics')
+                    g.attrs.create('run',data=p[key].get_runstr())
                     g.create_dataset('tofs',data=p[key].tofs,dtype=np.uint64) 
                     g.create_dataset('slopes',data=p[key].slopes,dtype=np.int64) 
                     g.create_dataset('addresses',data=p[key].addresses,dtype=np.uint64)
@@ -242,13 +236,17 @@ class Port:
             return process_fex2coeffs(s,x)
         elif self.processAlgo == 'fex2hits':
             return self.process_fex2hits(s,x)
-        return process_wave(s,x=0)
+        else:
+            return self.process_wave(s)
 
     def process_fex2coeffs(self,s,x):
         print('HERE HERE HERE HERE')
 
         return True
 
+    def set_processAlgo(self,algo:str):
+        self.processAlgo = algo
+        return self
 
     def advance_event(self):
         self.e = []
@@ -273,16 +271,19 @@ class Port:
             for i,s in enumerate(slist[:-1]):
                 if i==0:
                     self.baseline = sum(s[:1<<2])>>2
-                expandBits = 1
-                e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),base=self.baseline,offset=2,expandBits=expandBits) # scan the logic vector for hits
-                r = [0]*(len(logic)<<expandBits)
+                expand = 1
+                if self.processAlgo=='fftfex2hits':
+                    e,de,ne,logic = fftLogic_fex(s,thresh=int(-1024),base=self.baseline,inflate=inflate,expand=expand,rollon=8,rolloff=8) 
+                else:
+                    e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),base=self.baseline,offset=2,expand=expand) # scan the logic vector for hits
+                r = [0]*(len(logic)<<(math.log2(expand)))
                 for ind in e:
                     r[ind] = 1
 
                 if True and len(self.addresses)%self.sampleEvery==0:
                     self.addsample(r,s,logic)
 
-                start = xlist[i]<<expandBits
+                start = xlist[i]*expand*inflate
                 thise += [start+v for v in e] 
                 thisde += [d for d in de]
 
