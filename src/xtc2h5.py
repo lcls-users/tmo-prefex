@@ -39,8 +39,8 @@ def main(nshots:int,runnums:List[int]):
     #######################
     cfgname:str = '%s/config.yaml'%(os.environ.get('configpath'))
     is_fex:bool = True 
-    inflate:int = 2
-    expand:int = 2
+    inflate:int = 4
+    expand:int = 1
 
     runhsd=True
     rungmd=True
@@ -128,7 +128,7 @@ def main(nshots:int,runnums:List[int]):
                     chankeys[rkey][hsdname].update({k:k}) # this we may want to replace with the PCIe address id or the HSD serial number.
                     port[rkey][hsdname].update({k:Port(k,chankeys[rkey][hsdname][k],inflate=inflate,expand=expand)})
                     port[rkey][hsdname][k].set_runkey(rkey).set_name(hsdname)
-                    port[rkey][hsdname][k].set_logicthresh(-1*(1<<10)).set_processAlgo('fftfex2hits')
+                    port[rkey][hsdname][k].set_logicthresh(-1*(1<<10)).set_processAlgo('fftfex2hits')#.set_processAlgo('fex2hits')#
                     if is_fex:
                         port[rkey][hsdname][k].setRollOn((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpre))>>2) # guessing that 3/4 of the pre and post extension for threshold crossing in fex is a good range for the roll on and off of the signal
                         port[rkey][hsdname][k].setRollOff((3*int(hsds[rkey][hsdname].raw._seg_configs()[k].config.user.fex.xpost))>>2)

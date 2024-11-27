@@ -1,8 +1,9 @@
 import numpy as np
-from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean,cfdLogic,cfdLogic_mod,fftLogic_fex,fftLogic,fftLogic_f16
+from utils import mypoly,tanhInt,tanhFloat,randomround,quick_mean,cfdLogic,cfdLogic_mod,fftLogic_fex,fftLogic,fftLogic_f16,intlog2
 import h5py
 import time
 from typing import Type,List
+import re
 
 import matplotlib.pyplot as plt
     
@@ -234,7 +235,7 @@ class Port:
     def process(self,s,x=0):
         if self.processAlgo =='fex2coeffs':
             return process_fex2coeffs(s,x)
-        elif self.processAlgo == 'fex2hits':
+        elif re.search('fex2hits',self.processAlgo):
             return self.process_fex2hits(s,x)
         else:
             return self.process_wave(s)
@@ -271,19 +272,18 @@ class Port:
             for i,s in enumerate(slist[:-1]):
                 if i==0:
                     self.baseline = sum(s[:1<<2])>>2
-                expand = 1
                 if self.processAlgo=='fftfex2hits':
-                    e,de,ne,logic = fftLogic_fex(s,thresh=int(-1024),base=self.baseline,inflate=inflate,expand=expand,rollon=8,rolloff=8) 
+                    e,de,ne,logic = fftLogic_fex(s,thresh=int(-1024),base=self.baseline,inflate=self.inflate,expand=self.expand,rollon=8,rolloff=8) 
                 else:
-                    e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),base=self.baseline,offset=2,expand=expand) # scan the logic vector for hits
-                r = [0]*(len(logic)<<(math.log2(expand)))
+                    e,de,ne,logic = cfdLogic_mod(s,thresh=int(-1024),base=self.baseline,offset=2,expand=self.expand) # scan the logic vector for hits
+                r = [0]*(len(logic)<<(intlog2(self.expand)))
                 for ind in e:
                     r[ind] = 1
 
                 if True and len(self.addresses)%self.sampleEvery==0:
                     self.addsample(r,s,logic)
 
-                start = xlist[i]*expand*inflate
+                start = xlist[i]*self.expand*self.inflate
                 thise += [start+v for v in e] 
                 thisde += [d for d in de]
 

@@ -11,7 +11,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=32g
-#SBATCH --time=0-08:00:00
+#SBATCH --time=0-12:00:00
 #SBATCH --mail-user=coffee@slac.stanford.edu
 #SBATCH --mail-type=FAIL
 #SBATCH --gpus 0

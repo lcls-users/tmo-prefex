@@ -16,7 +16,6 @@ class Evr:
 
     @classmethod
     def slim_update_h5(cls,f,evr,evrEvents):
-        grpevr = None
         grprun = None
         for rkey in evr.keys():
             for ename in evr[rkey]['evr'].keys():
@@ -35,14 +34,11 @@ class Evr:
         grpevr = None
         grprun = None
         for rkey in evr.keys():
-            print('HERE in Evr.update_h5')
             rstr = evr[rkey]['evr'].get_runstr()
-            print(rstr)
-            if rstr not in f.keys():
-                f.create_group(rstr)
-            if 'evr' not in f[rstr].keys():
-                f[rstr].create_group('evr')
-            grpevr = f[rstr]['evr']
+            if 'evr' not in f.keys():
+                f.create_group('evr')
+            grpevr = f['evr']
+            grpevr.attrs.create('run',data=rstr)
             evrdata = grpevr.create_dataset('evrdata',data=evr[rkey]['evr'].codes,dtype=bool)
             evrdata.attrs.create('stride',3,dtype=np.uint8)
             evrdata.attrs.create('codenames',data=['laser','goose','anylaser'])
