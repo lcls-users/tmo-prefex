@@ -29,6 +29,8 @@ class Atm:
         self.winstart = 0
         self.winstop = 1<<11
         self.processAlgo = 'piranha_edge' # 'piranha'
+        self.runkey = 'r0000'
+        self.name = 'atm'
         return
     
     def reset(self):
@@ -61,16 +63,13 @@ class Atm:
     @classmethod
     def update_h5(cls,f,atm,spcEvents):
         grpspc = None
-        grprun = None
         for rkey in atm.keys():
             for name in atm[rkey].keys():
                 thisatm = atm[rkey][name]
-                rstr = atm[rkey][name].get_runstr()
-                if rstr not in f.keys():
-                    f.create_group(rstr)
-                if name not in f[rstr].keys():
-                    f[rstr].create_group(name)
+                if name not in f.keys():
+                    f.create_group(name)
                 grpspc = f[rstr][name]
+                grpspc.attrs.create('run',data=atm[rkey][name].get_runstr())
                 grpspc.create_dataset('data',data=atm[rkey][name].v,dtype=np.uint16)
                 grpspc.create_dataset('starts',data=atm[rkey][name].vstarts,dtype=np.uint32)
                 grpspc.create_dataset('lens',data=atm[rkey][name].vlens,dtype=np.uint16)
