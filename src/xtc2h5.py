@@ -39,7 +39,7 @@ def main(nshots:int,runnums:List[int]):
     #######################
     cfgname:str = '%s/config.yaml'%(os.environ.get('configpath'))
     is_fex:bool = True 
-    inflate:int = 4
+    inflate:int = 8
     expand:int = 1
 
     runhsd=True

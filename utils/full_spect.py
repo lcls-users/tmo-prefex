@@ -12,14 +12,17 @@ def main():
     filenames = [nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))]
     hist = {}
     maxtof:np.uint32 = 1<<15
+    runstr = 'r0273'
+    m = re.search('\.(r\d+)\.',filenames[0])
+    if m:
+        runstr = m.group(1)
     for name in filenames:
         print(name)
         with h5py.File(os.path.join(path,name),'r') as f:
-            runstr = [k for k in f.keys()][0]
             detstr = 'mrco_hsd'
-            hsd = f[runstr][detstr]
-            fzp = f[runstr]['tmo_fzppiranha']
-            xgmd = f[runstr]['xgmd']
+            hsd = f[detstr]
+            fzp = f['tmo_fzppiranha']
+            xgmd = f['xgmd']
             ports = [p for p in hsd.keys()]
             portnums = np.sort([int(re.search('_(\d+)$',k).group(1)) for k in ports])
             for i,p in enumerate(ports):
@@ -37,13 +40,17 @@ def main():
                         hist[p][v] += 1
 
     fig,axs = plt.subplots(nrows=4, ncols=4, figsize=(25, 24))
+    startinds = [24000, 24150, 24150, 24100, 24090, 23950, 23950, 24150, 24150, 24150, 25250, 24100, 24300, 24150, 24000, 24000 ]
+    window = [150]*len(startinds)
     for i,p in enumerate(hist.keys()):
+        startinds[i] += 300 
         col = i%4
         row = i>>2
-        axs[row,col].stairs(hist[p][11000:15000],label=p)
+        axs[row,col].stairs(hist[p][startinds[i]:startinds[i]+window[i]],label=p)
         axs[row,col].legend()
-        axs[row,col].set_xlabel('tof bins * expand')
+        axs[row,col].set_xlabel('tof bins * inflate * expand')
         axs[row,col].set_ylabel('counts')
+    plt.savefig('./figures/ArgonAugers_%s.png'%runstr)
     plt.show()
 
 

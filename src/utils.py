@@ -157,7 +157,7 @@ def fftLogic_fex(s,thresh,base,inflate=1,expand=1,rollon=8,rolloff=32):
     y = ifft(Sy,axis=0).real[:(inflate*sz)]
     dy = ifft(S,axis=0).real[:(inflate*sz)]
     result = np.zeros(sz*inflate,dtype=np.int32)
-    result = (y*dy).astype(np.int64)
+    result = (y*-1*dy).astype(np.int64)
     result >>= (7-intlog2(inflate))
     '''
     print(np.min(result),np.max(result))
