@@ -11,7 +11,7 @@ def main():
     path = sys.argv[1]
     filenames = [nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))]
     hist = {}
-    maxtof:np.uint32 = 1<<15
+    maxtof:np.uint32 = 1<<16
     runstr = 'r0273'
     m = re.search('\.(r\d+)\.',filenames[0])
     if m:
@@ -40,10 +40,9 @@ def main():
                         hist[p][v] += 1
 
     fig,axs = plt.subplots(nrows=4, ncols=4, figsize=(25, 24))
-    startinds = [24000, 24150, 24150, 24100, 24090, 23950, 23950, 24150, 24150, 24150, 25250, 24100, 24300, 24150, 24000, 24000 ]
-    window = [150]*len(startinds)
+    startinds = [(v<<1)-(1<<10) for v in [24000, 24150, 24150, 24100, 24090, 23950, 23950, 24150, 24150, 24150, 25250, 24100, 24300, 24150, 24000, 24000 ]]
+    window = [5000]*len(startinds)
     for i,p in enumerate(hist.keys()):
-        startinds[i] += 300 
         col = i%4
         row = i>>2
         axs[row,col].stairs(hist[p][startinds[i]:startinds[i]+window[i]],label=p)
