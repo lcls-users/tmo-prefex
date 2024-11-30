@@ -1,0 +1,20 @@
+name: mk_corr
+script: |
+  echo Running $mpirun tof_corr --dial tcp://134.79.23.43:3000
+  PATH=/lustre/polis/csc266/world-shared/schedulers/bin:$PATH
+  $mpirun tof_corr --start 5800 --stop 8000 --dial tcp://134.79.23.43:3000
+
+resources:
+    duration: 30
+    node_count: 1
+    # cpu-intensive
+    processes_per_node: 1
+    cpu_cores_per_process: 15
+    gpu_cores_per_process:  1
+    # gpu-intensive
+    #processes_per_node: 4
+    #gpu_cores_per_process: 1
+
+# Enabling these would send HTTP calls when the job changes state.
+callback: null
+cb_secret: null

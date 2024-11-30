@@ -16,7 +16,8 @@ from stream import stream
 from .utils import (
     mypoly, tanhInt, tanhFloat,
     randomround, quick_mean, concat,
-    cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic
+    cfdLogic, fftLogic_f16, fftLogic_fex, fftLogic,
+    calc_offsets
 )
 
 _rng = np.random.default_rng( time.time_ns()%(1<<8) )
@@ -37,6 +38,7 @@ class HsdConfig(BaseModel):
     t0: int = 0
     baselim: int = 1<<6
     # size: int = p[key].sz*p[key].inflate ### need to also multiply by expand #### HERE HERE HERE HERE
+    rate: float = 6.0e9 # digitizer sampling rate (Hz)
 
     def scanedges_stupid(self,d):
         tofs = []
@@ -436,7 +438,7 @@ def save_hsd(waves: Union[List[WaveData], List[FexData]]
     if len(nedges) == 0:
         addresses = np.array([], dtype=np.uint64)
     else:
-        addresses = nedges.cumsum()-nedges[0]
+        addresses = calc_offsets(nedges)
     return dict(
         config = waves[0].cfg,
         events = np.array(events, dtype=np.uint32),
