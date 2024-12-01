@@ -1,5 +1,13 @@
 # Latest update...
 
+Higher resolution in ryan-dev using fft method. 
+for Run 276... 
+![plot](./figures/r0276.ArAugers.png)
+
+The energy identification is from Avaldi paper in ```./references/Avaldi/```
+
+
+
 assuming 10000 shots for a quick run.  
 ```bash
 for r in $(seq 70 79); do sbatch slurmscript.bash tmox1016823 $r 10000;done

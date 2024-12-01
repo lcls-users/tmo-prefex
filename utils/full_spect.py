@@ -11,7 +11,7 @@ def main():
     path = sys.argv[1]
     filenames = [nm for nm in os.listdir(path) if os.path.isfile(os.path.join(path, nm))]
     hist = {}
-    maxtof:np.uint32 = 1<<16
+    maxtof:np.uint32 = 1<<17
     runstr = 'r0273'
     m = re.search('\.(r\d+)\.',filenames[0])
     if m:
@@ -40,8 +40,12 @@ def main():
                         hist[p][v] += 1
 
     fig,axs = plt.subplots(nrows=4, ncols=4, figsize=(25, 24))
-    startinds = [(v<<1)-(1<<10) for v in [24000, 24150, 24150, 24100, 24090, 23950, 23950, 24150, 24150, 24150, 25250, 24100, 24300, 24150, 24000, 24000 ]]
-    window = [5000]*len(startinds)
+    #startinds = [(v<<1)-(1<<10) for v in [24000, 24150, 24150, 24100, 24090, 23950, 23950, 24150, 24150, 24150, 25250, 24100, 24300, 24150, 24000, 24000 ]]
+    startinds = [3650, 4250, 4500, 4000, 4000, 3500, 3500, 4500, 4500, 4250, 8750, 4250, 4750, 4500, 3750, 3750]
+    for i in range(len(startinds)):
+        startinds[i] += (1<<16)+30000
+        
+    window = [1500]*len(startinds)
     for i,p in enumerate(hist.keys()):
         col = i%4
         row = i>>2
@@ -51,6 +55,17 @@ def main():
         axs[row,col].set_ylabel('counts')
     plt.savefig('./figures/ArgonAugers_%s.png'%runstr)
     plt.show()
+
+    outpath = sys.argv[2]
+    os.makedirs(outpath,mode=0o776,exist_ok=True)
+    nm = '%s_full_spect.h5'%(runstr)
+    oname = os.path.join(outpath,nm)
+    with h5py.File(oname,'w') as o:
+        for i,p in enumerate(hist.keys()):
+            dset = o.create_dataset(p,data=hist[p][startinds[i]:startinds[i]+window[i]],dtype=np.uint16)
+            dset.attrs.create('startind',data = startinds[i])
+            dset.attrs.create('window',data = window[i])
+
 
 
 if __name__ == "__main__":
