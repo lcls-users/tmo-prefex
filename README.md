@@ -41,7 +41,7 @@ Hutch coordinates are +z along propagation of x-ray pulses, +x is toward the rol
 Plan for yields.py... update to running live monitor with polar plot, and accommodate longer FEX window (xpre,xpost) than the +/-8 used for tmox1016823 (shift 2 x-y tuning).  
 
 # Plan for SUMMIT+  
-Run ```fex2h5_minimal.py``` locally in the DRP and send the resulting .h5 files to OLCF.  
+Run ```xtc2h5_minimal.py``` locally in the DRP and send the resulting .h5 files to OLCF.  
 Update the quantization vector (serially).  
 Reply with the updated quantization vector.  
 Refresh plotted histograms based on new quant vecs.  
