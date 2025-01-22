@@ -47,9 +47,9 @@ def main():
     # removing another 2000 for sake of _longAugers_new.h5
     startinds = [-350, 250, 500, 000, 000, -500, -500, 500, 500, 250, 4750, 250, 750, 500, -250, -250]
     for i in range(len(startinds)):
-        startinds[i] += (1<<16)+30000
+        startinds[i] += (1<<16)+30000#+20000 only comment out for no retardation
         
-    window = [14000]*len(startinds)
+    window = [14000]*len(startinds)#[24000]*len(startinds) #
     for i,p in enumerate(hist.keys()):
         col = i%4
         row = i>>2
