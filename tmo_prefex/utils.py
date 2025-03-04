@@ -289,3 +289,9 @@ def concat(arg):
     if len(vals) == 0:
         return np.array([], dtype=np.int32)
     return np.hstack(vals)
+
+def calc_offsets(sizes):
+    offsets = np.empty(len(sizes), dtype=np.uint64)
+    offsets[0] = 0
+    offsets[1:] = sizes[:-1]
+    return offsets.cumsum(out=offsets)

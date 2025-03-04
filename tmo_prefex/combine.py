@@ -5,7 +5,7 @@ from .Config import DetectorConfig
 from .Hsd import HsdConfig, WaveData, FexData
 from .Gmd import GmdConfig, GmdData
 from .Spect import SpectConfig, SpectData # was Vls?
-from .utils import concat
+from .utils import concat, calc_offsets
 
 import numpy as np
 from stream import filter
@@ -50,10 +50,23 @@ class Batch(dict):
               'l3energy': np.float16,
               'l3offset': np.uint16,
              }
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, events=0):
+        super().__init__()
+        # FIXME: can't tell how many were skipped.
+        self.attrs = {'events':events} #, 'skipped':0}
 
     def extend(self, *data) -> "Batch":
+        # Note: we don't look for incompatibilities in
+        # attributes (e.g. step number) or detector configs,
+        # since we assume the user knows about those and wants
+        # to combine datasets anyway.
+
+        self.attrs['events'] = self.attrs.get('events',0) \
+                        + sum(d.attrs.get('events',0) for d in data)
+        #self.attrs['skipped'] = self.attrs.get('skipped',0) \
+        #                + sum(d.attrs.get('skipped',0) for d in data)
+
+
         # FIXME: add a level to addr_keys, so it's indexed first by
         # detector type.
         # Then all address fields can be called 'addresses'
@@ -89,7 +102,7 @@ class Batch(dict):
                     if tuple(sz) != tuple(sz2):
                         raise ValueError(f"Length mismatch between keys {sz_key} and {sz_key2}: {sz} vs. {sz2}")
 
-                off = np.cumsum([0] + sz[:-1])
+                off = calc_offsets(sz)
                 u = [v] + [d[idx][k] for d in data]
                 for x, o in zip(u, off):
                     x += o
@@ -113,6 +126,7 @@ class Batch(dict):
     @classmethod
     def from_h5(cls, f):
         self = cls()
+        self.attrs = dict(f.attrs)
 
         for name, det in f.items():
             for chan, data in det.items():
@@ -137,6 +151,8 @@ class Batch(dict):
         return self
 
     def write_h5(self, f):
+        for k, v in self.attrs.items():
+            f.attrs.create(k, data=v)
         for (name,chan), data in self.items():
             if name in f.keys():
                 nmgrp = f[name]
@@ -154,7 +170,6 @@ class Batch(dict):
                     # Store HsdConfig, etc. in json strings.
                     g.attrs.create(k, data=v.model_dump_json())
                 else:
-
                     g.create_dataset(k,
                                      data=np.array(v, dtype=dtype),
                                      dtype=dtype)
@@ -175,11 +190,13 @@ def batch_data(u: List[ List[Dict] ],
         The result is a dict holding the function result
         as each value.
     """
-    if len(u) == 0:
-        return Batch()
     assert len(u[0]) == len(fns), "I must have one combination function for each detector type."
-
     n = len(u)    # events
+
+    ans = Batch(n)
+    if n == 0:
+        return ans
+
     def mk_empty():
         return [None]*n
 
@@ -192,8 +209,7 @@ def batch_data(u: List[ List[Dict] ],
             for k, v in y.items():
                 val[k][i] = v
 
-    ans = {}
     for fn, det_outputs in zip(fns,u[0]):
         for k in det_outputs.keys():
             ans[k] = fn( val[k] )
-    return Batch(ans)
+    return ans

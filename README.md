@@ -9,7 +9,7 @@ source /sdf/group/lcls/ds/ana/sw/conda2/manage/bin/psconda.sh
 # python3 -m venv --system-site-packages ./venv
 # . ./venv/bin/activate
 # which pip # ensure pip path points to venv!!!
-# pip install -r requirements.txt
+# pip install -e .
 source ./venv/bin/activate
 ```
 
@@ -18,11 +18,11 @@ source ./venv/bin/activate
 ```bash
 ssh psana
 # setup env (as above)
-fex2h5 <nruns> <runname> <list of run numbers>
+xtc2h5 <nruns> <runname> <list of run numbers>
 ```
 
 For additional clues, see `process.sh`, which does some
-additional hand-waving before calling fex2h5,
+additional hand-waving before calling xtc2h5,
 
 ```
 ssh psana $PWD/process.sh 1000 tmox1016823 330
@@ -66,7 +66,7 @@ python plot.py
 
 # Sending live data to OLCF/Defiant
 
-Run fex2h5 with --send option:
+Run xtc2h5 with --send option:
 ```bash
 ssh sdfdtn003 # need to be on a dtn
 cd /sdf/home/r/rogersdd/src/tmo-prefex
@@ -134,7 +134,7 @@ Plan for yields.py... update to running live monitor with polar plot, and accomm
 
 ## Plan for SUMMIT+  
 
-Run ```fex2h5``` locally in the DRP and send the resulting
+Run ```xtc2h5``` locally in the DRP and send the resulting
 .h5 files to OLCF (--send argument).
 
 Accumulate each batch of data sent into the TOF histograms.
