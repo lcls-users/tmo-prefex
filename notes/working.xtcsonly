@@ -1,0 +1,13 @@
+>>> _ = [next(run.events()) for i in range(100)];evt = next(run.events())
+>>> _=[plt.plot(hsd.raw.peaks(evt)[292][0][1][i][:]) for i in range(1,len(hsd.raw.peaks(evt)[292][0][1])-1)];plt.show()
+>>> fname = '/sdf/data/lcls/ds/tmo/tmo101347625/xtc/tmo101347625-r0022-s019-c000.xtc2'
+>>> ds = ps.DataSource(files=fname)
+>>> run=next(ds.runs())
+>>> hsd=run.Detector('mrco_hsd')
+>>> hsd.raw.peaks(evt).keys()
+dict_keys([292])
+>>> _=[plt.plot(hsd.raw.peaks(evt)[292][0][1][i][:]) for i in range(1,len(hsd.raw.peaks(evt)[292][0][1])-1)];plt.show()
+>>> _ = [next(run.events()) for i in range(100)];evt = next(run.events())
+>>> _=[plt.plot(hsd.raw.peaks(evt)[292][0][1][i][:]) for i in range(1,len(hsd.raw.peaks(evt)[292][0][1])-1)];plt.show()
+>>> _ = [next(run.events()) for i in range(100)];evt = next(run.events())
+>>> _=[plt.plot(hsd.raw.peaks(evt)[292][0][1][i][:]) for i in range(1,len(hsd.raw.peaks(evt)[292][0][1])-1)];plt.show()
